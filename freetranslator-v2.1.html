@@ -358,6 +358,32 @@
       </div>
     </div>
 
+    <div class="card">
+      <div class="card-title">Távolság viszonypárok · 1=szervezett</div>
+      <div style="font-size:10px;color:var(--muted);margin-bottom:6px">
+        "1" egységpont = tökéletes belső kapacitás szervezettség (minden pár távolsága → 0)
+      </div>
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px">
+        <div style="font-size:28px;font-weight:800;color:var(--ai)" id="orgScore">–</div>
+        <div>
+          <div style="font-size:10px;color:var(--muted)">Szervező egységpont</div>
+          <div style="height:5px;border-radius:3px;background:var(--line);width:120px;margin-top:3px">
+            <div id="orgBar" style="height:100%;border-radius:3px;background:linear-gradient(90deg,var(--south),var(--ai));width:0%;transition:width 0.6s ease"></div>
+          </div>
+        </div>
+        <select id="distanceModeSelect" style="font-size:11px;margin-left:auto">
+          <option value="flexible">Rugalmas</option>
+          <option value="tight">Feszesebb</option>
+        </select>
+      </div>
+      <div id="distancePairsList" style="font-size:11px"></div>
+      <div style="margin-top:8px">
+        <button class="btn btn-secondary" id="calcDistanceBtn" style="width:100%;font-size:11px">
+          Távolság számítás
+        </button>
+      </div>
+    </div>
+
   </aside>
 
   <!-- ══ CENTER ══════════════════════════════════════════════════════════════ -->
@@ -496,17 +522,56 @@
             <circle cx="-88" cy="0" r="5" fill="#d7a7ff" filter="url(#glow)"/>
             <text x="-96" y="4" text-anchor="end" fill="#d7a7ff" font-size="8">Ny</text>
           </g>
+          <!-- QR belső burkolás – legszűkebb pixelméretben (V1 21×21 modul) -->
+          <!-- Félátlátszó, a mag mögött, klikkelhetó -->
+          <g id="qrGroup" style="cursor:pointer" onclick="openQRTarget()">
+            <rect x="-22" y="-22" width="44" height="44" rx="3"
+              fill="rgba(0,0,0,0.72)" stroke="rgba(216,177,90,0.35)" stroke-width="0.5"/>
+            <!-- QR modul rácsot JS rendereli ide -->
+            <g id="qrModules" transform="translate(-20,-20)"></g>
+            <!-- Felső info sáv -->
+            <text y="-25" text-anchor="middle" fill="rgba(216,177,90,0.6)"
+              font-size="4.5" id="qrDirLabel">QR</text>
+          </g>
           <!-- Reticle arm -->
           <line id="reticleArm" x1="0" y1="0" x2="0" y2="-70"
             stroke="rgba(216,177,90,0.9)" stroke-width="2"
             style="transform-origin:center;transition:transform 0.4s ease"/>
           <circle id="reticleTip" cx="0" cy="-70" r="4" fill="var(--accent)"
             filter="url(#glow)"/>
-          <!-- Core -->
-          <circle r="18" fill="radial-gradient(circle,#fff4d2,#d8b15a)"
-            stroke="rgba(216,177,90,0.6)" stroke-width="1"/>
-          <text y="4" text-anchor="middle" fill="#221607" font-size="6" font-weight="800">AGY</text>
+          <!-- Core ring over QR -->
+          <circle r="14" fill="rgba(10,12,18,0.55)"
+            stroke="rgba(216,177,90,0.4)" stroke-width="0.8"/>
+          <text y="3" text-anchor="middle" fill="rgba(216,177,90,0.9)"
+            font-size="5" font-weight="800">AGY</text>
         </svg>
+      </div>
+      <!-- QR info sor -->
+      <div style="font-size:10px;color:var(--muted);margin-top:4px;text-align:center" id="qrInfoRow">
+        QR nincs még renderelve
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">QR burkolás · Teleport végpont</div>
+      <div style="display:flex;gap:8px;margin-bottom:8px">
+        <select id="qrDirSelect" style="flex:1;font-size:12px">
+          <option value="east">Kelet (Fordítás)</option>
+          <option value="north">Észak (Kérdés)</option>
+          <option value="south">Dél (Döntés)</option>
+          <option value="west">Nyugat (Tanulás)</option>
+        </select>
+        <select id="qrModeSelect" style="flex:1;font-size:12px">
+          <option value="flexible">Rugalmas</option>
+          <option value="tight">Feszesebb</option>
+        </select>
+      </div>
+      <div class="btn-row">
+        <button class="btn btn-secondary" id="qrRenderBtn" style="flex:1;font-size:12px">QR renderelés</button>
+        <button class="btn btn-secondary" id="qrAutoBtn" style="flex:1;font-size:12px">Auto QR</button>
+      </div>
+      <div style="margin-top:8px;font-size:11px;color:var(--muted)" id="qrUrlDisplay">
+        URL: –
       </div>
     </div>
 
@@ -1362,12 +1427,21 @@ async function doDecide() {
   const btn = document.getElementById('decideBtn');
   btn.disabled = true; btn.textContent = 'Szamol...';
   try {
-    const res = await fetch('/api/decide', {
+    const res    = await fetch('/api/decide', {
       method: 'POST',
       headers: { 'Content-Type':'application/json' },
       body: JSON.stringify(buildDecidePayload())
     });
-    renderDecisionResult(await res.json());
+    lastDecideResult = await res.json();
+    renderDecisionResult(lastDecideResult);
+    // QR auto-frissítés domináns irányra
+    if (lastDecideResult.comparison) {
+      const dom = lastDecideResult.inner.dominant;
+      document.getElementById('qrDirSelect').value = dom;
+      renderQRInSphere(dom);
+    }
+    // Távolság viszonypárok automatikus frissítése
+    calcAndRenderDistance();
   } catch(e) {
     document.getElementById('decideStatus').textContent = 'Hiba: ' + e.message;
   } finally {
@@ -1376,6 +1450,241 @@ async function doDecide() {
 }
 
 document.getElementById('decideBtn').addEventListener('click', doDecide);
+
+/* ══════════════════════════════════════════════════════════════════════════════
+   QR BELSŐ BURKOLÁS
+   Minimum V1 QR (21×21 modul) – SVG modulok direktbe a gömbbe renderelve
+   Rugalmas / Feszesebb mód: update delay
+══════════════════════════════════════════════════════════════════════════════ */
+
+let qrCurrentDir  = 'east';
+let qrCurrentUrl  = '';
+let qrAutoActive  = false;
+let qrAutoTimer   = null;
+const QR_COLORS   = { north:'#78c4ff', east:'#8be28b', south:'#ff9b9b', west:'#d7a7ff' };
+
+function buildQRUrlClient(dir) {
+  const paths = { north:'/api/route', east:'/api/translate', south:'/api/decide', west:'/api/weights' };
+  const apiPath = paths[dir] || '/api/decide';
+  // Rövid params – helytakarékos (max ~41 char = V1 L QR)
+  const p = new URLSearchParams({
+    d: dir[0],
+    e: Math.round(state.matrixEnergy),
+    a: Math.round(state.reticleAngle),
+    s: state.step % 9999,
+    m: state.engineType[0]
+  });
+  return `${location.origin}${apiPath}?${p}`;
+}
+
+async function renderQRInSphere(dir) {
+  qrCurrentDir = dir;
+  const color  = QR_COLORS[dir] || '#d8b15a';
+  const url    = buildQRUrlClient(dir);
+  qrCurrentUrl = url;
+  const ecl    = url.length <= 41 ? 'L' : url.length <= 77 ? 'M' : 'Q';
+
+  document.getElementById('qrUrlDisplay').textContent = 'URL: ' + url;
+  document.getElementById('qrDirLabel').textContent   = dir[0].toUpperCase();
+  document.getElementById('qrInfoRow').innerHTML =
+    `QR → <b style="color:${color}">${dir}</b> | ${url.length} char | ECL-${ecl}`;
+
+  try {
+    const res = await fetch(`/api/qr?dir=${dir}&data=${encodeURIComponent(url)}`);
+    if (!res.ok) throw new Error(`QR ${res.status}`);
+
+    const svgText = await res.text();
+    const parser  = new DOMParser();
+    const qrDoc   = parser.parseFromString(svgText, 'image/svg+xml');
+
+    // ViewBox kinyerése a skálaszámításhoz
+    const vbRaw  = qrDoc.querySelector('svg')?.getAttribute('viewBox') || '0 0 33 33';
+    const vbSize = parseFloat(vbRaw.split(/\s+/)[2]) || 33;
+    // 40 SVG egység = teljes belső tér (-20..+20); középre igazítva
+    const scale  = 40 / vbSize;
+
+    const g = document.getElementById('qrModules');
+    g.innerHTML = '';
+    g.setAttribute('transform', `translate(-20,-20) scale(${scale.toFixed(4)})`);
+
+    // A qrcode lib stroke-alapú path-okat ad (nem fill=black)
+    // Csak a sötét modul path kell (stroke="#color", a fill="#fff" background kihagyva)
+    qrDoc.querySelectorAll('path').forEach(el => {
+      const stroke = el.getAttribute('stroke');
+      const fill   = el.getAttribute('fill') || '';
+      // Kihagyjuk a fehér/átlátszó háttér path-ot
+      if (fill.match(/#fff|#ffffff|rgba\(0,0,0,0\)/i) && !stroke) return;
+
+      const np = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+      np.setAttribute('d', el.getAttribute('d') || '');
+      // stroke-alapú QR modul: megtartjuk stroke-nak, de fill=none
+      if (stroke) {
+        np.setAttribute('stroke', color);
+        np.setAttribute('stroke-width', '1');
+        np.setAttribute('fill', 'none');
+      } else {
+        np.setAttribute('fill', color);
+        np.setAttribute('stroke', 'none');
+      }
+      np.setAttribute('opacity', '0.88');
+      g.appendChild(np);
+    });
+
+    // Kereten: aktuális irány szín
+    document.getElementById('qrGroup').querySelector('rect')
+      ?.setAttribute('stroke', color + '66');
+
+  } catch (e) {
+    document.getElementById('qrInfoRow').textContent = 'QR hiba: ' + e.message;
+  }
+}
+
+function openQRTarget() {
+  if (qrCurrentUrl) window.open(qrCurrentUrl, '_blank');
+}
+
+function startQRAuto() {
+  const mode   = document.getElementById('qrModeSelect').value;
+  const delay  = mode === 'tight' ? 1000 : 3000; // ms
+  qrAutoActive = true;
+  document.getElementById('qrAutoBtn').textContent = 'Auto STOP';
+
+  qrAutoTimer = setInterval(() => {
+    // Auto-irány: a domináns irány alapján
+    const domMap = { north:'north', east:'east', south:'south', west:'west' };
+    const autoDir = domMap[state.dominant] || 'east';
+    document.getElementById('qrDirSelect').value = autoDir;
+    renderQRInSphere(autoDir);
+  }, delay);
+}
+
+function stopQRAuto() {
+  qrAutoActive = false;
+  clearInterval(qrAutoTimer);
+  document.getElementById('qrAutoBtn').textContent = 'Auto QR';
+}
+
+document.getElementById('qrRenderBtn').addEventListener('click', () => {
+  renderQRInSphere(document.getElementById('qrDirSelect').value);
+});
+document.getElementById('qrAutoBtn').addEventListener('click', () => {
+  qrAutoActive ? stopQRAuto() : startQRAuto();
+});
+document.getElementById('qrDirSelect').addEventListener('change', e => {
+  renderQRInSphere(e.target.value);
+});
+document.getElementById('qrModeSelect').addEventListener('change', () => {
+  if (qrAutoActive) { stopQRAuto(); startQRAuto(); }
+  else renderQRInSphere(qrCurrentDir);
+});
+
+/* ══════════════════════════════════════════════════════════════════════════════
+   TÁVOLSÁG VISZONYPÁROK
+   1 = belső kapacitás szervező egységpont
+   Rugalmas / Feszesebb mód: smoothing faktor
+══════════════════════════════════════════════════════════════════════════════ */
+
+let lastDecideResult = null; // a legutóbbi decide() eredmény
+let smoothedPairs    = null; // simított értékek (rugalmas mód)
+const SMOOTH_FACTOR  = 0.3;  // 0=statikus, 1=azonnal (tight)
+
+function renderDistancePairs(pairs, orgScore) {
+  document.getElementById('orgScore').textContent = (orgScore * 100).toFixed(1) + '%';
+  document.getElementById('orgBar').style.width  = (orgScore * 100) + '%';
+
+  const mode  = document.getElementById('distanceModeSelect').value;
+  const list  = document.getElementById('distancePairsList');
+
+  if (!pairs || !pairs.length) {
+    list.innerHTML = '<div style="color:var(--muted)">Nincs adat.</div>';
+    return;
+  }
+
+  list.innerHTML = pairs.map(p => {
+    const distPct = (p.distance * 100).toFixed(1);
+    const unitPct = (p.unity * 100).toFixed(1);
+    const isOrg   = p.unity > 0.8;
+    const barCol  = isOrg ? 'var(--ai)' : p.unity > 0.5 ? 'var(--accent)' : 'var(--south)';
+    const modeTag = p.mode === mode ? '' : `<span style="opacity:0.4;font-size:9px">[${p.mode}]</span>`;
+    return `<div style="margin-bottom:7px;padding-bottom:7px;border-bottom:1px solid var(--line)">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:2px">
+        <span style="color:var(--text);font-size:11px">${p.label} ${modeTag}</span>
+        <span style="color:${barCol};font-weight:700">${unitPct}%</span>
+      </div>
+      <div style="font-size:10px;color:var(--muted);margin-bottom:3px">
+        ${p.aLabel}: ${p.a} &nbsp;|&nbsp; ${p.bLabel}: ${p.b}
+        &nbsp;· d=${distPct}%
+      </div>
+      <div style="height:4px;border-radius:2px;background:var(--line)">
+        <div style="height:100%;border-radius:2px;background:${barCol};width:${unitPct}%;transition:width 0.5s"></div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+async function calcAndRenderDistance() {
+  try {
+    const d   = state.distribution;
+    const vib = state.vibration || {};
+    const inner = lastDecideResult?.inner || { score: 0, confidence: 0, angleOut: 0 };
+    const outer = lastDecideResult?.outer || { dominantScore: 0, distribution: d };
+
+    const payload = {
+      inner, outer,
+      state: {
+        reticleAngle: state.reticleAngle,
+        matrixEnergy: state.matrixEnergy,
+        engineType:   state.engineType,
+        contextSize:  context.length,
+        step:         state.step
+      },
+      vib: { ampNorm: vib.ampNorm || 0 },
+      adaptWeights: routingWeightAdapt
+    };
+
+    const mode = document.getElementById('distanceModeSelect').value;
+    const sf   = mode === 'tight' ? 1.0 : SMOOTH_FACTOR;
+
+    const res  = await fetch('/api/distance', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+    const data = await res.json();
+
+    // Simítás rugalmas módban
+    if (mode === 'flexible' && smoothedPairs) {
+      data.pairs = data.pairs.map((p, i) => {
+        const prev = smoothedPairs[i];
+        if (!prev) return p;
+        const sd = prev.distance + (p.distance - prev.distance) * sf;
+        return { ...p, distance: +sd.toFixed(4), unity: +(1 - sd).toFixed(4) };
+      });
+      data.organizationScore = 1 - data.pairs.reduce((s,p) => s + p.distance, 0) / data.pairs.length;
+    }
+    smoothedPairs = data.pairs;
+
+    renderDistancePairs(data.pairs, data.organizationScore);
+
+    // Ha a decide result-ban tárolva van, frissítjük
+    if (lastDecideResult) lastDecideResult._distancePairs = data.pairs;
+
+  } catch (e) {
+    document.getElementById('distancePairsList').innerHTML =
+      `<div style="color:var(--south)">Hiba: ${e.message}</div>`;
+  }
+}
+
+document.getElementById('calcDistanceBtn').addEventListener('click', calcAndRenderDistance);
+document.getElementById('distanceModeSelect').addEventListener('change', calcAndRenderDistance);
+
+// Frissítjük lastDecideResult-ban a döntési mátrix után
+const _origDoDecide = doDecide;
+async function doDecideWrapped() {
+  await _origDoDecide();
+  // Automatikusan frissíti a distance pairs-t is, ha volt decide eredmény
+  if (lastDecideResult) calcAndRenderDistance();
+}
 
 /* ══════════════════════════════════════════════════════════════════════════════
    INIT

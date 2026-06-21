@@ -8,6 +8,11 @@
  *   POST /api/interpret   – SSE: szabályzó AGY értelmezése
  *   POST /api/translate   – SSE: fordítás streaming
  *   POST /api/route       – szemantikai irányrouting (sync JSON)
+ *   POST /api/decide      – kettős réteg döntési mátrix
+ *   GET  /api/weights     – súlyPontszám tábla
+ *   GET  /api/qr          – QR kód SVG (min. V1 21×21 modul)
+ *   POST /api/distance    – távolság viszonypárok
+ */
  */
 
 'use strict';
@@ -17,6 +22,8 @@ const path    = require('path');
 const { listModels, detectLargestModel, streamGenerate, generate, checkHealth, estimateContextWindow }
   = require('./ollama-client.js');
 const { compute: decisionCompute, getAllWeights } = require('../src/decision-matrix.js');
+const QRCode = require('qrcode');
+const { buildQRUrl, calcDistancePairs, calcOrganizationScore, QR_ENDPOINTS } = require('../src/qr-entry.js');
 
 const app  = express();
 const PORT = process.env.PORT || 3000;
@@ -227,6 +234,49 @@ app.post('/api/decide', (req, res) => {
 // ── GET /api/weights ──────────────────────────────────────────────────────────
 app.get('/api/weights', (_req, res) => {
   res.json(getAllWeights());
+});
+
+// ── GET /api/qr ───────────────────────────────────────────────────────────────
+// QR kód generálás – minimum V1 (21×21 modul), SVG kimenet
+// Query: ?data=<url> &dir=<north|east|south|west> &mode=<flexible|tight>
+app.get('/api/qr', async (req, res) => {
+  const { dir = 'east', data, mode = 'flexible' } = req.query;
+
+  // Ha nincs adat, a végpont API path-ját kódoljuk
+  const ep      = QR_ENDPOINTS[dir] || QR_ENDPOINTS.east;
+  const baseUrl = `http://localhost:${PORT}`;
+  const qrData  = data || `${baseUrl}${ep.apiPath}`;
+
+  // Helytakarékos: Error Correction Level L = legkisebb modul szükséglet
+  // Version 1 L: max 41 alphanum karakter → 21×21 modul
+  const ecl = qrData.length <= 41 ? 'L' : qrData.length <= 77 ? 'M' : 'Q';
+
+  try {
+    const svg = await QRCode.toString(qrData, {
+      type:            'svg',
+      errorCorrectionLevel: ecl,
+      margin:          0,        // nincs keret – helytakarékos
+      color: { dark: ep.color, light: '#00000000' }  // átlátszó háttér
+    });
+    res.setHeader('Content-Type', 'image/svg+xml');
+    res.setHeader('Cache-Control', 'public, max-age=60');
+    res.send(svg);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ── POST /api/distance ────────────────────────────────────────────────────────
+// Távolság viszonypárok kiszámítása – belső kapacitás szervezettség
+app.post('/api/distance', (req, res) => {
+  try {
+    const { inner = {}, outer = {}, state = {}, vib = {}, adaptWeights = {} } = req.body;
+    const pairs = calcDistancePairs(inner, outer, state, vib, adaptWeights);
+    const orgScore = calcOrganizationScore(pairs);
+    res.json({ pairs, organizationScore: orgScore, unity: orgScore });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
 // ── Start ────────────────────────────────────────────────────────────────────
