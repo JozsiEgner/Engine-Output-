@@ -26,6 +26,7 @@ const QRCode = require('qrcode');
 const { buildQRUrl, calcDistancePairs, calcOrganizationScore, QR_ENDPOINTS } = require('../src/qr-entry.js');
 const { scheduler } = require('../src/cortex-scheduler.js');
 const { calcAllColumns, applyAllColumnConstraints, calcStructuralIntegrity } = require('../src/structural-columns.js');
+const { catalog: legoCatalog } = require('../src/atom-lego.js');
 
 const app  = express();
 const PORT = process.env.PORT || 3000;
@@ -341,6 +342,97 @@ app.post('/api/columns', (req, res) => {
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
+});
+
+// ══ ATOM LEGO KOCKA VÉGPONTOK ════════════════════════════════════════════════
+// QR + internet = végtelen tömörített tartalom fogadása
+// Anyba kantálás / szétbontás / zsugorítás / internet feloldás
+
+// ── POST /api/lego/create ─────────────────────────────────────────────────────
+// Új atom brick létrehozása (mini kapacitás: 4KB)
+app.post('/api/lego/create', (req, res) => {
+  try {
+    const { payload, inetRef, level, dir, parentId } = req.body;
+    if (payload == null) return res.status(400).json({ error: 'payload hiányzik' });
+    const result = legoCatalog.create(payload, { inetRef, level, dir, parentId });
+    res.json(result);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ── POST /api/lego/dock ───────────────────────────────────────────────────────
+// Anyba kantálás – child brick beillesztése parentbe
+app.post('/api/lego/dock', (req, res) => {
+  try {
+    const { childId, parentId } = req.body;
+    const result = legoCatalog.dock(childId, parentId);
+    if (!result) return res.status(404).json({ error: 'Brick nem található' });
+    res.json(result);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ── POST /api/lego/split ──────────────────────────────────────────────────────
+// Szétbontás – egy brick n atom-kockára osztása (zsugorik)
+app.post('/api/lego/split', (req, res) => {
+  try {
+    const { brickId, n = 2, dir } = req.body;
+    const result = legoCatalog.split(brickId, n, dir);
+    if (!result) return res.status(404).json({ error: 'Brick nem található' });
+    res.json(result);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ── POST /api/lego/compress ───────────────────────────────────────────────────
+// QR zsugorítás – tartalom → QR URL hivatkozás (helytakarékos)
+app.post('/api/lego/compress', (req, res) => {
+  try {
+    const { brickId } = req.body;
+    const baseUrl = `http://localhost:${PORT}`;
+    const result  = legoCatalog.compress(brickId, baseUrl);
+    if (!result) return res.status(404).json({ error: 'Brick nem található' });
+    res.json(result);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ── POST /api/lego/resolve ────────────────────────────────────────────────────
+// Internet feloldás – QR/URL → tartalom letöltés → új brick(ek) (LEGO chain)
+app.post('/api/lego/resolve', async (req, res) => {
+  try {
+    const { brickId, doSplit = true } = req.body;
+    const result = await legoCatalog.resolve(brickId, doSplit);
+    res.json(result);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ── GET /api/lego/tree/:id? ───────────────────────────────────────────────────
+// Hierarchikus brick fa lekérése
+app.get('/api/lego/tree/:id?', (req, res) => {
+  const tree = legoCatalog.getTree(req.params.id || null);
+  if (!tree && req.params.id) return res.status(404).json({ error: 'Brick nem található' });
+  res.json(tree || { empty: true });
+});
+
+// ── GET /api/lego/summary ─────────────────────────────────────────────────────
+// Katalógus összesítő – teljes állapot
+app.get('/api/lego/summary', (_req, res) => {
+  res.json(legoCatalog.summary());
+});
+
+// ── GET /lego/:id ─────────────────────────────────────────────────────────────
+// QR hivatkozás feloldó végpont (a QR kódok erre mutatnak)
+app.get('/lego/:id', (req, res) => {
+  const b = legoCatalog.bricks[req.params.id];
+  if (!b) return res.status(404).json({ error: 'Atom brick nem található' });
+  res.json(b.toJSON());
 });
 
 // ── Start ────────────────────────────────────────────────────────────────────
