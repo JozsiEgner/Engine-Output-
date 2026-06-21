@@ -25,6 +25,7 @@ const { compute: decisionCompute, getAllWeights } = require('../src/decision-mat
 const QRCode = require('qrcode');
 const { buildQRUrl, calcDistancePairs, calcOrganizationScore, QR_ENDPOINTS } = require('../src/qr-entry.js');
 const { scheduler } = require('../src/cortex-scheduler.js');
+const { calcAllColumns, applyAllColumnConstraints, calcStructuralIntegrity } = require('../src/structural-columns.js');
 
 const app  = express();
 const PORT = process.env.PORT || 3000;
@@ -312,6 +313,34 @@ app.post('/api/distance', (req, res) => {
 // Cortex ütemező teljes állapota: hőtérkép, egységfa, terhelés elosztás
 app.get('/api/cortex', (_req, res) => {
   res.json(scheduler.status());
+});
+
+// ── POST /api/columns ─────────────────────────────────────────────────────────
+// Szerkezeti tartó oszlopok: 4 × 21 rezonáns szint, anti-deformáció szorítás
+app.post('/api/columns', (req, res) => {
+  try {
+    const { step = 0, reticleAngle = 0, matrixEnergy = 50, tension = 0.5, distribution } = req.body;
+    const columns   = calcAllColumns(step, reticleAngle, matrixEnergy, tension);
+    const integrity = calcStructuralIntegrity(columns);
+
+    let correctedDist = null;
+    if (distribution) {
+      correctedDist = applyAllColumnConstraints(columns, distribution, 0.48);
+    }
+
+    res.json({
+      columns: columns.map(c => ({
+        dir: c.dir, angle: c.angle, lambdaNm: c.lambdaNm, color: c.color, label: c.label,
+        strength: c.strength, pressure: c.pressure, integrity: c.integrity,
+        peakLevel: c.peakLevel, active: c.active,
+        levels: c.levels.map(v => +v.toFixed(3))
+      })),
+      integrity,
+      correctedDistribution: correctedDist
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
 // ── Start ────────────────────────────────────────────────────────────────────

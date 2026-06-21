@@ -256,6 +256,22 @@
       border-radius: 8px; padding: 8px 10px;
     }
 
+    /* ── Structural Columns ── */
+    .col-integrity-row {
+      display: flex; align-items: center; gap: 6px; margin-bottom: 4px;
+    }
+    .col-integrity-bar {
+      flex: 1; height: 5px; border-radius: 3px;
+      background: rgba(255,255,255,0.05); overflow: hidden;
+    }
+    .col-integrity-fill {
+      height: 100%; border-radius: 3px; transition: width 0.5s ease, opacity 0.5s;
+    }
+    .col-pressure-dot {
+      width: 7px; height: 7px; border-radius: 50%;
+      transition: all 0.4s; flex-shrink: 0;
+    }
+
     /* ── Cortex Scheduler ── */
     .ctx-thermal-wrap {
       display: flex; align-items: center; gap: 8px; margin-bottom: 8px;
@@ -559,6 +575,14 @@
           <!-- Balloon (0-forma) – dinamikusan renderelt -->
           <path id="balloonPath" fill="url(#sphereGrad)"
             stroke="rgba(255,255,255,0.12)" stroke-width="0.8"/>
+          <!-- Szerkezeti tartó oszlopok – 4 × 21 rezonáns szint (fény hullámhossz) -->
+          <!-- JS tölti fel: <g id="colN/E/S/W"> soronként 21 körjelölő -->
+          <g id="structCols" opacity="0.72">
+            <g id="colNorth"></g>   <!-- ~450nm kék  -->
+            <g id="colEast"></g>    <!-- ~530nm zöld -->
+            <g id="colSouth"></g>   <!-- ~680nm vörös -->
+            <g id="colWest"></g>    <!-- ~405nm ibolya -->
+          </g>
           <!-- Zero ring -->
           <circle r="55" fill="none" stroke="rgba(216,177,90,0.5)" stroke-width="3"
             style="filter:drop-shadow(0 0 6px rgba(216,177,90,0.3))"/>
@@ -637,6 +661,23 @@
     <div class="card">
       <div class="card-title">Csatorna állapotok</div>
       <div id="channelList" style="font-size:11px"></div>
+    </div>
+
+    <!-- Szerkezeti tartó oszlopok kártya -->
+    <div class="card" id="colCard">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+        <span class="card-title" style="margin:0">Tartó pillérek · 4×21 szint</span>
+        <span id="colIntegrityBadge"
+          style="font-size:10px;padding:2px 7px;border-radius:5px;
+          background:rgba(139,226,139,0.12);color:#8be28b;font-weight:700">100%</span>
+      </div>
+      <!-- 4 pillér integritás sor -->
+      <div id="colIntegrityRows"></div>
+      <!-- Globális integritás -->
+      <div style="margin-top:6px;font-size:10px;color:var(--muted)">
+        Szerkezeti integritás: <span id="colGlobalIntegrity" style="color:var(--accent)">–</span>
+        &nbsp;·&nbsp; Aktív: <span id="colActiveCount">4</span>/4
+      </div>
     </div>
 
     <div class="card">
@@ -1060,6 +1101,7 @@ function engineStep() {
   renderUI(dist, retAngle);
   renderBalloon(retAngle, state.tension, state.resonance, state.step, state.matrixEnergy);
   renderVibration(vib, state.step);
+  updateColumns(); // tartó pillérek frissítése minden lépésnél
 }
 
 function renderUI(dist, retAngle) {
@@ -1775,6 +1817,142 @@ async function doDecideWrapped() {
 }
 
 /* ══════════════════════════════════════════════════════════════════════════════
+   SZERKEZETI TARTÓ OSZLOPOK – 4 × 21 fény-hullámhossz rezonáns szint
+   Anti-deformáció szorítás · Fény sebessége alapú frekvencia · Külső nyomás ellenállás
+══════════════════════════════════════════════════════════════════════════════ */
+const COL_DIRS = [
+  { dir:'north', angle:0,   lambdaNm:450, color:'#78c4ff', svgId:'colNorth', label:'É · 450nm' },
+  { dir:'east',  angle:90,  lambdaNm:530, color:'#8be28b', svgId:'colEast',  label:'K · 530nm' },
+  { dir:'south', angle:180, lambdaNm:680, color:'#ff9b9b', svgId:'colSouth', label:'D · 680nm' },
+  { dir:'west',  angle:270, lambdaNm:405, color:'#d7a7ff', svgId:'colWest',  label:'Ny · 405nm' }
+];
+
+const COL_LEVELS = 21;   // QR V1 modul-szám = szerkezeti szintek
+const C_LIGHT    = 3e8;  // m/s
+
+/** Inline pillér szint-számítás (kliens oldal, nincs szerver hívás) */
+function calcColLevels(lambdaNm, step, reticleAngle, matrixEnergy) {
+  const baseFreq = C_LIGHT / (lambdaNm * 1e-9);
+  const energy   = matrixEnergy / 100;
+  const levels   = [];
+  for (let k = 0; k < COL_LEVELS; k++) {
+    const harmonic    = baseFreq * (k + 1);
+    const phase       = 2 * Math.PI * (harmonic * step * 1e-14 + k * reticleAngle / 360);
+    const heightWeight = 1 - (k / COL_LEVELS) * 0.6;
+    const raw         = Math.cos(phase) * heightWeight;
+    levels.push((raw + 1) / 2);
+  }
+  return levels;
+}
+
+function calcColStrength(levels, matrixEnergy) {
+  const avg   = levels.reduce((s, v) => s + v, 0) / levels.length;
+  const boost = 1 + (matrixEnergy / 100) * 0.35; // nyomás → erő nő
+  return Math.min(1, avg * boost);
+}
+
+/**
+ * SVG pillér renderelés – 21 körjelölő a radiális tengelyen
+ * Alap (0. szint, center felőli): nagy, teljes opacitás
+ * Csúcs (20. szint, él felőli): kis, halványabb
+ */
+function renderColumnSvg(colDef, levels, strength, svgRadius = 68) {
+  const g   = document.getElementById(colDef.svgId);
+  if (!g) return;
+  const rad = (colDef.angle - 90) * Math.PI / 180; // SVG koordináta rendszer
+  const dx  = Math.cos(rad);
+  const dy  = Math.sin(rad);
+  let html  = '';
+
+  // Pillér gerinc vonal
+  const glow = strength > 0.7 ? `filter:drop-shadow(0 0 2px ${colDef.color})` : '';
+  html += `<line x1="0" y1="0" x2="${dx*svgRadius}" y2="${dy*svgRadius}"
+    stroke="${colDef.color}" stroke-width="0.4" opacity="${0.12 + strength*0.18}" style="${glow}"/>`;
+
+  // 21 szintjelölő (belső köröktől → kifelé)
+  for (let k = 0; k < COL_LEVELS; k++) {
+    const t    = (k + 1) / (COL_LEVELS + 1);   // 0→1 (0=center, 1=él)
+    const r    = t * svgRadius;
+    const x    = dx * r;
+    const y    = dy * r;
+    const lv   = levels[k];
+    const size = 0.8 + lv * 1.4;               // szint értéke → méret
+    const alpha = 0.15 + lv * 0.75;            // szint értéke → opacitás
+    const pulseClass = strength > 0.75 && lv > 0.7 ? ' class="ctx-unit hi-load"' : '';
+    html += `<circle${pulseClass} cx="${x.toFixed(2)}" cy="${y.toFixed(2)}" r="${size.toFixed(2)}"
+      fill="${colDef.color}" opacity="${alpha.toFixed(2)}"/>`;
+  }
+
+  g.innerHTML = html;
+}
+
+function renderAllColumns(colData) {
+  if (!colData) return;
+  const { columns, integrity } = colData;
+
+  // SVG pillérek
+  columns.forEach((col, i) => {
+    renderColumnSvg(COL_DIRS[i], col.levels, col.strength);
+  });
+
+  // Integritás badge
+  const badge = document.getElementById('colIntegrityBadge');
+  const intPct = Math.round((integrity || 0) * 100);
+  if (badge) {
+    badge.textContent = intPct + '%';
+    const c = intPct > 75 ? '#8be28b' : intPct > 45 ? '#ffc96b' : '#ff9b9b';
+    badge.style.color = c;
+    badge.style.background = `rgba(${c === '#8be28b' ? '139,226,139' : c === '#ffc96b' ? '255,201,107' : '255,155,155'},0.12)`;
+  }
+  const gi = document.getElementById('colGlobalIntegrity');
+  if (gi) gi.textContent = (integrity || 0).toFixed(4);
+
+  // Pillér sorok
+  const rows = document.getElementById('colIntegrityRows');
+  if (rows && columns) {
+    rows.innerHTML = columns.map((col, i) => {
+      const c   = COL_DIRS[i].color;
+      const pct = Math.round(col.strength * 100);
+      const pressurePct = Math.round(col.pressure * 100);
+      const dotOpacity = col.active ? '1' : '0.3';
+      return `<div class="col-integrity-row">
+        <span style="font-size:10px;color:${c};width:52px">${COL_DIRS[i].label}</span>
+        <div class="col-integrity-bar">
+          <div class="col-integrity-fill" style="width:${pct}%;background:${c};opacity:${col.active?1:0.4}"></div>
+        </div>
+        <span style="font-size:10px;color:var(--muted);min-width:30px;text-align:right">${pct}%</span>
+        <div class="col-pressure-dot" title="Nyomás: ${pressurePct}%"
+          style="background:${c};opacity:${dotOpacity};box-shadow:${pressurePct>60?'0 0 4px '+c:'none'}"></div>
+      </div>`;
+    }).join('');
+  }
+
+  const ac = document.getElementById('colActiveCount');
+  if (ac) ac.textContent = columns.filter(c => c.active).length;
+}
+
+let _lastColData = null;
+
+function updateColumns() {
+  const colData = {
+    columns: COL_DIRS.map(def => {
+      const levels   = calcColLevels(def.lambdaNm, state.step, state.reticleAngle, state.matrixEnergy);
+      const strength = calcColStrength(levels, state.matrixEnergy);
+      const diff     = Math.abs(((state.reticleAngle - def.angle) + 360) % 360);
+      const angDist  = Math.min(diff, 360 - diff) / 180;
+      const pressure = angDist * (1 - state.tension);
+      const integrity = Math.min(1, strength * (1 + levels.indexOf(Math.max(...levels)) / COL_LEVELS * 0.2));
+      return { ...def, levels, strength: +strength.toFixed(4),
+               pressure: +pressure.toFixed(4), integrity: +integrity.toFixed(4),
+               active: strength > 0.3 && angDist < 0.6 };
+    })
+  };
+  colData.integrity = +(colData.columns.reduce((s,c) => s + c.integrity, 0) / 4).toFixed(4);
+  _lastColData = colData;
+  renderAllColumns(colData);
+}
+
+/* ══════════════════════════════════════════════════════════════════════════════
    CORTEX ÜTEMEZŐ – GPU-analóg vizualizáció
    Csúszó terhelés / Mászó önbeágyazás / Forgó vektorirányzék routing
 ══════════════════════════════════════════════════════════════════════════════ */
@@ -1899,6 +2077,7 @@ async function init() {
   renderBalloon(state.reticleAngle, state.tension, state.resonance, state.step, state.matrixEnergy);
   renderVibration({ freqHz:0, ampNorm:0, arcM:0, wavelengthM:0, note:'-' }, 0);
   updateSelfStruct();
+  updateColumns();
   startCortexPoll();
 }
 
