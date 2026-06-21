@@ -1,0 +1,53 @@
+{
+  "name": "egnerrent",
+  "private": true,
+  "version": "1.0.0",
+  "description": "EgnerRent - Digitalis kozvetito platform.",
+  "scripts": {
+    "serve": "npm run build:client && wrangler pages dev dist --compatibility-date=2024-09-23",
+    "dev": "wrangler pages dev dist --compatibility-date=2024-09-23",
+    "dev:cf": "wrangler pages dev dist --compatibility-date=2024-09-23",
+    "build": "npm run build:client",
+    "build:client": "vite build",
+    "deploy": "npm run build:client && wrangler pages deploy dist --project-name=egnerrent --branch=main",
+    "db:init": "wrangler d1 execute egnerrent-db --local --file=./cloudflare/d1_schema.sql",
+    "db:init:remote": "wrangler d1 execute egnerrent-db --remote --file=./cloudflare/d1_schema.sql",
+    "preview": "vite preview",
+    "clean": "rm -rf dist",
+    "lint": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@tailwindcss/vite": "^4.1.14",
+    "@types/leaflet": "^1.9.21",
+    "@types/leaflet.heat": "^0.2.5",
+    "@types/leaflet.markercluster": "^1.5.6",
+    "@vitejs/plugin-react": "^5.0.4",
+    "clsx": "^2.1.1",
+    "framer-motion": "^12.38.0",
+    "geofire-common": "^6.0.0",
+    "leaflet": "^1.9.4",
+    "leaflet.heat": "^0.2.0",
+    "lucide-react": "^0.546.0",
+    "motion": "^12.38.0",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "react-leaflet": "^5.0.0",
+    "react-leaflet-cluster": "^4.1.3",
+    "react-markdown": "^10.1.0",
+    "react-router-dom": "^7.13.2",
+    "tailwind-merge": "^3.5.0",
+    "zod": "^4.3.6"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^4.20241224.0",
+    "@types/node": "^22.14.0",
+    "autoprefixer": "^10.4.21",
+    "esbuild": "^0.28.0",
+    "hono": "^4.6.20",
+    "tailwindcss": "^4.1.14",
+    "tsx": "^4.21.0",
+    "typescript": "~5.8.2",
+    "vite": "^6.2.0",
+    "wrangler": "^4.103.0"
+  }
+}
