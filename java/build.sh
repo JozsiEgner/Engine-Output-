@@ -19,5 +19,10 @@ javac -source 21 -target 21 -d "$OUT" \
 
 echo "✓ Sikeres fordítás → $OUT/"
 echo ""
-echo "▶ Indítás (PORT=${PORT:-3001})..."
+echo "✓ Sikeres fordítás → $OUT/"
+echo ""
+echo "▶ Indítás (PORT=${PORT:-3002})..."
+echo "   Python AGY: python3 python/agy.py  (port 3001)"
+echo "   Java AGY:   java -cp out freetranslator.FreeTranslatorServer  (port 3002)"
+echo ""
 java -cp "$OUT" freetranslator.FreeTranslatorServer

@@ -19,6 +19,7 @@
 
 const express = require('express');
 const path    = require('path');
+const fs      = require('fs');
 const { listModels, detectLargestModel, streamGenerate, generate, checkHealth, estimateContextWindow }
   = require('./ollama-client.js');
 const { compute: decisionCompute, getAllWeights } = require('../src/decision-matrix.js');
@@ -433,6 +434,37 @@ app.get('/lego/:id', (req, res) => {
   const b = legoCatalog.bricks[req.params.id];
   if (!b) return res.status(404).json({ error: 'Atom brick nem található' });
   res.json(b.toJSON());
+});
+
+// ── GET /panorama ─────────────────────────────────────────────────────────────
+// Belső gömbös-spirál panoráma nézet (Three.js, holttér nélkül)
+app.get('/panorama', (_req, res) => {
+  const p = path.join(__dirname, '..', 'freetranslator-panorama.html');
+  if (fs.existsSync(p)) res.sendFile(p);
+  else res.status(404).send('Panoráma oldal nem található');
+});
+
+// ── GET /api/agy-compare ──────────────────────────────────────────────────────
+// Megosztott napló (Python AGY + Java AGY összehasonlítás)
+const AGY_LOG = '/tmp/agy_log.jsonl';
+app.get('/api/agy-compare', (_req, res) => {
+  try {
+    const raw = fs.existsSync(AGY_LOG) ? fs.readFileSync(AGY_LOG, 'utf8') : '';
+    const entries = raw.trim().split('\n')
+      .filter(l => l.trim())
+      .map(l => { try { return JSON.parse(l); } catch { return null; } })
+      .filter(Boolean);
+    const python = entries.filter(e => e.source === 'python');
+    const java   = entries.filter(e => e.source === 'java');
+    res.json({
+      entries,
+      total: entries.length,
+      python: { count: python.length, last: python[python.length-1] || null },
+      java:   { count: java.length,   last: java[java.length-1] || null },
+    });
+  } catch (err) {
+    res.json({ entries: [], total: 0, error: err.message });
+  }
 });
 
 // ── Start ────────────────────────────────────────────────────────────────────

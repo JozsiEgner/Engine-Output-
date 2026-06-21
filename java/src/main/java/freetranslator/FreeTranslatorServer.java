@@ -4,8 +4,11 @@ import com.sun.net.httpserver.*;
 import java.io.*;
 import java.net.*;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.*;
+import java.time.Instant;
 import java.util.*;
 import java.util.concurrent.*;
+import java.util.concurrent.atomic.AtomicInteger;
 
 /**
  * FreeTranslator v2.1 – Java HTTP szerver
@@ -28,16 +31,34 @@ import java.util.concurrent.*;
  */
 public class FreeTranslatorServer {
 
-    private final int             port;
-    private final OllamaClient    ollama;
-    private final DecisionMatrix  matrix;
-    private final CortexScheduler cortex;
+    private static final String LOG_FILE = "/tmp/agy_log.jsonl";
+
+    private final int              port;
+    private final OllamaClient     ollama;
+    private final DecisionMatrix   matrix;
+    private final CortexScheduler  cortex;
+    private final AtomicInteger    stepCounter = new AtomicInteger(0);
 
     public FreeTranslatorServer(int port) {
         this.port   = port;
         this.ollama = new OllamaClient();
         this.matrix = new DecisionMatrix();
         this.cortex = new CortexScheduler();
+    }
+
+    // ── Shared log (same format as Python AGY) ────────────────────────────────
+    private void writeLog(String action, String input, String output, double angle, long ms) {
+        try {
+            String entry = String.format(
+                "{\"ts\":\"%s\",\"source\":\"java\",\"action\":\"%s\",\"input\":\"%s\",\"output\":\"%s\",\"angle\":%.2f,\"thermal\":\"%s\",\"ms\":%d}%n",
+                Instant.now().toString(), action,
+                escJson(input.length() > 200 ? input.substring(0, 200) : input),
+                escJson(output.length() > 200 ? output.substring(0, 200) : output),
+                angle, cortex.status().getOrDefault("thermalBand","?").toString(), ms
+            );
+            Files.writeString(Path.of(LOG_FILE), entry,
+                StandardOpenOption.CREATE, StandardOpenOption.APPEND);
+        } catch (IOException ignore) {}
     }
 
     public void start() throws IOException {
@@ -51,11 +72,14 @@ public class FreeTranslatorServer {
         server.createContext("/api/decide",    this::handleDecide);
         server.createContext("/api/weights",   this::handleWeights);
         server.createContext("/api/cortex",    this::handleCortex);
+        server.createContext("/status",        this::handleStatus);
+        server.createContext("/log",           this::handleLog);
         server.createContext("/", this::handleStatic);
 
         server.start();
-        System.out.printf("%nFreeTranslator v2.1 – Java backend%n");
+        System.out.printf("%nJava AGY – FreeTranslator v2.1%n");
         System.out.printf("Szerver: http://localhost:%d%n", port);
+        System.out.printf("Napló:   %s%n", LOG_FILE);
         System.out.printf("Ollama:  %s%n", System.getenv().getOrDefault("OLLAMA_HOST", "http://localhost:11434"));
         if (ollama.checkHealth()) {
             System.out.println("Ollama OK");
@@ -253,10 +277,56 @@ public class FreeTranslatorServer {
         sendJson(ex, 200, mapToJson(cortex.status()));
     }
 
+    // ── GET /status  (shared format with Python AGY) ──────────────────────────
+
+    private void handleStatus(HttpExchange ex) throws IOException {
+        if (!"GET".equals(ex.getRequestMethod())) { send405(ex); return; }
+        var cs = cortex.status();
+        String band = cs.containsKey("thermalBand") ? cs.get("thermalBand").toString() : "HŰVÖS";
+        double load = cs.containsKey("load") ? ((Number)cs.get("load")).doubleValue() : 0;
+        double heat = cs.containsKey("heat") ? ((Number)cs.get("heat")).doubleValue() : 0;
+        String json = String.format(
+            "{\"source\":\"java\",\"port\":%d,\"step\":%d,\"load\":%.3f,\"heat\":%.3f," +
+            "\"thermalBand\":{\"label\":\"%s\",\"color\":\"#d7a7ff\"}}",
+            port, stepCounter.get(), load, heat, escJson(band)
+        );
+        sendCors(ex, 200, json);
+    }
+
+    // ── GET /log ──────────────────────────────────────────────────────────────
+
+    private void handleLog(HttpExchange ex) throws IOException {
+        if (!"GET".equals(ex.getRequestMethod())) { send405(ex); return; }
+        try {
+            var lines = Files.readAllLines(Path.of(LOG_FILE));
+            var sb    = new StringBuilder("[");
+            int start = Math.max(0, lines.size()-50);
+            for (int i=start; i<lines.size(); i++) {
+                String l = lines.get(i).trim();
+                if (l.isEmpty()) continue;
+                if (sb.length()>1) sb.append(",");
+                sb.append(l);
+            }
+            sb.append("]");
+            sendCors(ex, 200, "{\"entries\":" + sb + ",\"total\":" + lines.size() + "}");
+        } catch (IOException e) {
+            sendCors(ex, 200, "{\"entries\":[],\"total\":0}");
+        }
+    }
+
     // ── Static file fallback ──────────────────────────────────────────────────
 
     private void handleStatic(HttpExchange ex) throws IOException {
-        sendJson(ex, 200, "{\"name\":\"FreeTranslator v2.1 Java\",\"status\":\"ok\"}");
+        sendCors(ex, 200, "{\"name\":\"Java AGY\",\"source\":\"java\",\"port\":" + port + ",\"status\":\"ok\"}");
+    }
+
+    private void sendCors(HttpExchange ex, int code, String json) throws IOException {
+        byte[] bytes = json.getBytes(StandardCharsets.UTF_8);
+        ex.getResponseHeaders().set("Content-Type", "application/json; charset=utf-8");
+        ex.getResponseHeaders().set("Access-Control-Allow-Origin", "*");
+        ex.sendResponseHeaders(code, bytes.length);
+        ex.getResponseBody().write(bytes);
+        ex.getResponseBody().close();
     }
 
     // ── HTTP segédek ─────────────────────────────────────────────────────────
@@ -390,7 +460,7 @@ public class FreeTranslatorServer {
     // ── Main ─────────────────────────────────────────────────────────────────
 
     public static void main(String[] args) throws IOException {
-        int port = Integer.parseInt(System.getenv().getOrDefault("PORT", "3001"));
+        int port = Integer.parseInt(System.getenv().getOrDefault("PORT", "3002"));
         new FreeTranslatorServer(port).start();
     }
 }
