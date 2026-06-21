@@ -31,6 +31,7 @@ const { calcAllColumns, applyAllColumnConstraints, calcStructuralIntegrity } = r
 const { catalog: legoCatalog } = require('../src/atom-lego.js');
 const { GpuDarkSiliconDoctor, ShadowRegistry } = require('../src/dark-silicon-doctor.js');
 const { registry: sliceRegistry } = require('../src/function-slice.js');
+const { ezoAgent } = require('../src/ezo-agent.js');
 
 // ── GPU Dark Silicon Doctor + Árnyék példányosítás ────────────────────────────
 const shadows = new ShadowRegistry();
@@ -515,6 +516,117 @@ app.get('/api/agy-compare', (_req, res) => {
   } catch (err) {
     res.json({ entries: [], total: 0, error: err.message });
   }
+});
+
+// ══ ÉZÓ AGENT AI VÉGPONTOK ══════════════════════════════════════════════════
+
+// ── GET /api/ezo/status ───────────────────────────────────────────────────────
+// Ézó Agent teljes állapota: réteg fa, byte tengely, DeepSeek modell
+app.get('/api/ezo/status', (_req, res) => {
+  res.json(ezoAgent.status());
+});
+
+// ── GET /api/ezo/boot ─────────────────────────────────────────────────────────
+// Ézó boot: modell detektálás, gyökér + döntő réteg inicializálás
+app.get('/api/ezo/boot', async (_req, res) => {
+  try {
+    const result = await ezoAgent.boot();
+    res.json(result);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ── POST /api/ezo/process ─────────────────────────────────────────────────────
+// Fő feldolgozás: input → végtelen réteg stack → döntő réteg → DeepSeek → döntés
+app.post('/api/ezo/process', async (req, res) => {
+  try {
+    const { input = '', matrixEnergy = 50, binaryMode = false, layers = 0 } = req.body;
+    const result = await ezoAgent.process(input, { matrixEnergy, binaryMode, layers });
+    res.json(result);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ── POST /api/ezo/binary/load ─────────────────────────────────────────────────
+// Bináris adat betöltése az 1-byte forgási tengelyre
+app.post('/api/ezo/binary/load', (req, res) => {
+  try {
+    const { data = '', text } = req.body;
+    const str = text || data;
+    const buf  = Buffer.from(str, typeof str === 'string' ? 'utf8' : undefined);
+    const result = ezoAgent.byteAxis.loadBinary(buf);
+    res.json({ loaded: result, axis: ezoAgent.byteAxis.toJSON() });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ── POST /api/ezo/binary/read ─────────────────────────────────────────────────
+// 1-byte forgási tengely visszaolvasása (~99% pontossággal)
+app.post('/api/ezo/binary/read', (req, res) => {
+  try {
+    const { reticleAngle = null } = req.body;
+    const result = ezoAgent.readBinary(reticleAngle);
+    res.json(result);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ── POST /api/ezo/binary/encode-decode ───────────────────────────────────────
+// Szöveg → byte tengely → visszaolvasás (pontosság ellenőrzés)
+app.post('/api/ezo/binary/encode-decode', (req, res) => {
+  try {
+    const { text = '' } = req.body;
+    res.json(ezoAgent.encodeDecode(text));
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ── POST /api/ezo/layers/add ──────────────────────────────────────────────────
+// Új réteg szülése a réteg fába (végtelen mélységig)
+app.post('/api/ezo/layers/add', (req, res) => {
+  try {
+    const { parentId, dir = 'east', engineType, matrixEnergy = 50, tension, resonance } = req.body;
+    const layer = ezoAgent.stack.addLayer(parentId || ezoAgent.rootId, dir, {
+      engineType:    engineType || ezoAgent.engineType,
+      matrixEnergy,
+      tension:       tension    !== undefined ? tension    : ezoAgent.tension,
+      resonance:     resonance  !== undefined ? resonance  : ezoAgent.resonance,
+    });
+    res.json(layer.toJSON());
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ── POST /api/ezo/reinforce ───────────────────────────────────────────────────
+// Visszacsatolás: döntés erősítése/gyengítése (tanulás)
+app.post('/api/ezo/reinforce', (req, res) => {
+  try {
+    const { dir = 'east', reward = 0.01 } = req.body;
+    const weights = ezoAgent.reinforce(dir, reward);
+    res.json({ reinforced: true, dir, reward, weights });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ── GET /api/ezo/layers ───────────────────────────────────────────────────────
+// Réteg fa teljes állapota
+app.get('/api/ezo/layers', (_req, res) => {
+  res.json(ezoAgent.stack.status());
+});
+
+// ── GET /ezo ──────────────────────────────────────────────────────────────────
+// Ézó Agent AI UI
+app.get('/ezo', (_req, res) => {
+  const p = path.join(__dirname, '..', 'ezo-agent.html');
+  if (fs.existsSync(p)) res.sendFile(p);
+  else res.status(404).send('Ézó Agent UI nem található');
 });
 
 // ── Start ────────────────────────────────────────────────────────────────────
