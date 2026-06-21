@@ -12,7 +12,7 @@
  *   GET  /api/weights     – súlyPontszám tábla
  *   GET  /api/qr          – QR kód SVG (min. V1 21×21 modul)
  *   POST /api/distance    – távolság viszonypárok
- */
+ *   GET  /api/cortex      – Cortex ütemező állapot (GPU-analóg hőtérkép)
  */
 
 'use strict';
@@ -24,6 +24,7 @@ const { listModels, detectLargestModel, streamGenerate, generate, checkHealth, e
 const { compute: decisionCompute, getAllWeights } = require('../src/decision-matrix.js');
 const QRCode = require('qrcode');
 const { buildQRUrl, calcDistancePairs, calcOrganizationScore, QR_ENDPOINTS } = require('../src/qr-entry.js');
+const { scheduler } = require('../src/cortex-scheduler.js');
 
 const app  = express();
 const PORT = process.env.PORT || 3000;
@@ -80,9 +81,18 @@ app.post('/api/interpret', async (req, res) => {
 
   const send = (obj) => res.write(`data: ${JSON.stringify(obj)}\n\n`);
 
+  // Cortex: Észak irány (Értelmezés/Kérdés), reticle szög alapú routing
+  const t0   = Date.now();
+  const unit = scheduler.allocate('north', 0.55, reticleAngle);
+
   try {
     const model  = reqModel || await detectLargestModel();
     const numCtx = estimateContextWindow(model);
+    const { params: throttled, band, delayMs } = scheduler.throttleParams({
+      temperature: 0.4, num_predict: 256, num_ctx: numCtx
+    });
+    if (delayMs > 0) await new Promise(r => setTimeout(r, delayMs));
+
     const { north = 0, east = 0, south = 0, west = 0 } = distribution || {};
 
     const prompt =
@@ -93,20 +103,26 @@ Aktuális állapot:
 - Domináns irány: ${dominantDirection}
 - Eloszlás: É=${north}% K=${east}% D=${south}% Ny=${west}%
 - Utolsó 10 lépés: ${trajectoryLog}
+- Cortex hőmérséklet: ${Math.round(scheduler.thermal * 100)}% (${band.label})
 
 Adj egy tömör, 2-3 mondatos értelmezést: mit csinál most a rendszer, milyen tendencia figyelhető meg?
 Stílus: technikai, precíz, magyar nyelvű. Azonnal a lényegre térj, bevezető nélkül.`;
 
-    for await (const chunk of streamGenerate(model, prompt, {
-      options: { temperature: 0.4, num_predict: 256, num_ctx: numCtx }
-    })) {
+    for await (const chunk of streamGenerate(model, prompt, { options: throttled })) {
       if (chunk.response) send({ token: chunk.response });
-      if (chunk.done)     { send({ done: true, model }); res.end(); return; }
+      if (chunk.done) {
+        scheduler.release(unit.id, 0.55, Date.now() - t0);
+        send({ done: true, model, cortex: { band: band.name, thermalPct: Math.round(scheduler.thermal * 100) } });
+        res.end();
+        return;
+      }
     }
 
+    scheduler.release(unit.id, 0.55, Date.now() - t0);
     send({ done: true, model });
     res.end();
   } catch (err) {
+    scheduler.release(unit.id, 0.55, Date.now() - t0);
     send({ error: err.message });
     res.end();
   }
@@ -116,7 +132,7 @@ Stílus: technikai, precíz, magyar nyelvű. Azonnal a lényegre térj, bevezet�
 app.post('/api/translate', async (req, res) => {
   const {
     text, from = 'hu', to = 'en',
-    model: reqModel, context = []
+    model: reqModel, context = [], reticleAngle = null
   } = req.body;
 
   res.setHeader('Content-Type', 'text/event-stream; charset=utf-8');
@@ -126,9 +142,20 @@ app.post('/api/translate', async (req, res) => {
 
   const send = (obj) => res.write(`data: ${JSON.stringify(obj)}\n\n`);
 
+  // Cortex: Kelet irány (Fordítás), reticle szög alapú routing
+  const t0   = Date.now();
+  const unit = scheduler.allocate('east', 0.65, reticleAngle);
+  send({ _cortex: { unitId: unit.id, band: scheduler.getThermalBand().name, thermalPct: scheduler.thermalPct } });
+
   try {
     const model  = reqModel || await detectLargestModel();
     const numCtx = estimateContextWindow(model);
+
+    // GPU-analóg throttling: hőmérséklet szerint csökkentett paraméterek
+    const { params: throttled, band, delayMs } = scheduler.throttleParams({
+      temperature: 0.3, num_predict: 512, num_ctx: numCtx
+    });
+    if (delayMs > 0) await new Promise(r => setTimeout(r, delayMs));
 
     // Tartály sűrűség: kontextus összecsomagolása
     const contextBlock = context.length > 0
@@ -144,26 +171,28 @@ Fordítás:`;
 
     let fullText = '';
 
-    for await (const chunk of streamGenerate(model, prompt, {
-      options: { temperature: 0.3, num_predict: 512, num_ctx: numCtx }
-    })) {
+    for await (const chunk of streamGenerate(model, prompt, { options: throttled })) {
       if (chunk.response) {
         fullText += chunk.response;
         send({ token: chunk.response, full: fullText });
       }
       if (chunk.done) {
+        scheduler.release(unit.id, 0.65, Date.now() - t0);
         send({
           done: true, fullText: fullText.trim(), model,
-          stats: { tokens: chunk.eval_count, ms: chunk.eval_duration }
+          stats: { tokens: chunk.eval_count, ms: chunk.eval_duration },
+          cortex: { band: band.name, thermalPct: Math.round(scheduler.thermal * 100) }
         });
         res.end();
         return;
       }
     }
 
+    scheduler.release(unit.id, 0.65, Date.now() - t0);
     send({ done: true, fullText: fullText.trim(), model });
     res.end();
   } catch (err) {
+    scheduler.release(unit.id, 0.65, Date.now() - t0);
     send({ error: err.message });
     res.end();
   }
@@ -277,6 +306,12 @@ app.post('/api/distance', (req, res) => {
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
+});
+
+// ── GET /api/cortex ───────────────────────────────────────────────────────────
+// Cortex ütemező teljes állapota: hőtérkép, egységfa, terhelés elosztás
+app.get('/api/cortex', (_req, res) => {
+  res.json(scheduler.status());
 });
 
 // ── Start ────────────────────────────────────────────────────────────────────

@@ -256,6 +256,57 @@
       border-radius: 8px; padding: 8px 10px;
     }
 
+    /* ── Cortex Scheduler ── */
+    .ctx-thermal-wrap {
+      display: flex; align-items: center; gap: 8px; margin-bottom: 8px;
+    }
+    .ctx-thermal-track {
+      flex: 1; height: 6px; border-radius: 3px;
+      background: rgba(255,255,255,0.05); overflow: hidden;
+    }
+    .ctx-thermal-fill {
+      height: 100%; width: 0%; border-radius: 3px;
+      transition: width 0.6s ease, background 0.6s ease;
+    }
+    .ctx-band-pill {
+      font-size: 10px; padding: 2px 7px; border-radius: 5px;
+      font-weight: 700; letter-spacing: 0.05em; transition: all 0.5s;
+    }
+    .ctx-unit-grid {
+      display: flex; flex-wrap: wrap; gap: 4px; margin: 6px 0;
+    }
+    .ctx-unit {
+      border-radius: 50%; transition: all 0.4s ease;
+      cursor: default; position: relative;
+    }
+    .ctx-unit.embedded { border-radius: 3px !important; }
+    .ctx-unit.hi-load  { animation: ctx-pulse 1.1s ease-in-out infinite; }
+    @keyframes ctx-pulse {
+      0%,100% { opacity: 0.85; transform: scale(1);    }
+      50%      { opacity: 1;   transform: scale(1.25); }
+    }
+    /* Csúszó load bar */
+    .ctx-load-row {
+      display: flex; align-items: center; gap: 6px; margin-bottom: 4px;
+    }
+    .ctx-load-track {
+      flex: 1; height: 4px; border-radius: 2px;
+      background: rgba(255,255,255,0.05); overflow: hidden;
+    }
+    .ctx-load-fill {
+      height: 100%; border-radius: 2px; transition: width 0.5s ease;
+    }
+    .ctx-throttle {
+      font-size: 10px; color: var(--muted);
+      background: rgba(255,255,255,0.03);
+      border-radius: 6px; padding: 4px 8px; margin-top: 6px;
+      transition: color 0.4s;
+    }
+    .ctx-log {
+      margin-top: 6px; font-size: 10px; max-height: 56px; overflow-y: auto;
+      color: var(--muted); line-height: 1.6;
+    }
+
     /* ── Responsive ── */
     @media (max-width: 900px) {
       .layout { grid-template-columns: 1fr; grid-template-rows: auto; }
@@ -609,6 +660,43 @@
     <div class="card">
       <div class="card-title">Belső mozgások · réteg-frekvencia</div>
       <div id="innerMovements" style="font-size:11px;color:var(--muted);line-height:1.7">–</div>
+    </div>
+
+    <!-- ── Cortex Ütemező ─────────────────────────────────────────── -->
+    <div class="card" id="cortexCard">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+        <span class="card-title" style="margin:0">Cortex · GPU-analóg ütemező</span>
+        <span class="ctx-band-pill" id="ctxBandPill"
+          style="background:rgba(120,196,255,0.14);color:#78c4ff">HŰVÖS</span>
+      </div>
+
+      <!-- Hőmérséklet csík -->
+      <div class="ctx-thermal-wrap">
+        <span style="font-size:10px;color:var(--muted);width:18px">Hő</span>
+        <div class="ctx-thermal-track">
+          <div class="ctx-thermal-fill" id="ctxThermalFill"></div>
+        </div>
+        <span id="ctxThermalPct" style="font-size:10px;min-width:28px;text-align:right;color:var(--muted)">0%</span>
+      </div>
+
+      <!-- Irány-terhelés csúszó sorok -->
+      <div id="ctxLoadRows"></div>
+
+      <!-- Egység rács – GPU SM-analóg (csúszó/mászó/forgó) -->
+      <div style="font-size:10px;color:var(--muted);margin:5px 0 3px">
+        Egységek: <span id="ctxUnitCount">4</span>
+        · Mélység: <span id="ctxMaxDepth">0</span>
+        · Feladatok: <span id="ctxTaskCount">0</span>
+      </div>
+      <div class="ctx-unit-grid" id="ctxUnitGrid"></div>
+
+      <!-- Throttle állapot -->
+      <div class="ctx-throttle" id="ctxThrottle">
+        ctx 100% · pred 100% · delay 0ms
+      </div>
+
+      <!-- Feladat napló -->
+      <div class="ctx-log" id="ctxLog"></div>
     </div>
 
   </aside>
@@ -1044,7 +1132,7 @@ async function doTranslate() {
     const res = await fetch('/api/translate', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ text, from, to, model: selectedModel, context }),
+      body: JSON.stringify({ text, from, to, model: selectedModel, context, reticleAngle: state.reticleAngle }),
       signal: translateAbort.signal
     });
 
@@ -1687,6 +1775,121 @@ async function doDecideWrapped() {
 }
 
 /* ══════════════════════════════════════════════════════════════════════════════
+   CORTEX ÜTEMEZŐ – GPU-analóg vizualizáció
+   Csúszó terhelés / Mászó önbeágyazás / Forgó vektorirányzék routing
+══════════════════════════════════════════════════════════════════════════════ */
+const CTX_DIR_COLORS  = { north:'#78c4ff', east:'#8be28b', south:'#ff9b9b', west:'#d7a7ff' };
+const CTX_DIR_SHORT   = { north:'É', east:'K', south:'D', west:'Ny' };
+const CTX_BAND_COLORS = { COOL:'#78c4ff', WARM:'#8be28b', HOT:'#ffc96b', CRITICAL:'#ff9b9b' };
+const CTX_BAND_LABELS = { COOL:'HŰVÖS', WARM:'MELEG', HOT:'FORRÓ', CRITICAL:'KRITIKUS' };
+
+function hexToRgbStr(hex) {
+  const r = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+  return r ? `${parseInt(r[1],16)},${parseInt(r[2],16)},${parseInt(r[3],16)}` : '128,128,128';
+}
+
+function renderCortex(d) {
+  if (!d) return;
+  const band = d.band || {};
+  const bName = band.name || 'COOL';
+  const bc    = CTX_BAND_COLORS[bName] || '#78c4ff';
+  const pct   = d.thermalPct || 0;
+
+  // Hőcsík
+  const fill = document.getElementById('ctxThermalFill');
+  if (fill) {
+    fill.style.width      = pct + '%';
+    fill.style.background = `linear-gradient(90deg, #78c4ff 0%, ${bc} 100%)`;
+  }
+  const pctEl = document.getElementById('ctxThermalPct');
+  if (pctEl) pctEl.textContent = pct + '%';
+
+  // Band pill
+  const pill = document.getElementById('ctxBandPill');
+  if (pill) {
+    pill.textContent        = band.label || CTX_BAND_LABELS[bName] || bName;
+    pill.style.color        = bc;
+    pill.style.background   = `rgba(${hexToRgbStr(bc)},0.15)`;
+  }
+
+  // Irány-terhelés csúszó sorok
+  const loadRows = document.getElementById('ctxLoadRows');
+  if (loadRows && d.load) {
+    loadRows.innerHTML = ['north','east','south','west'].map(dir => {
+      const info = d.load[dir] || { avgLoad:0, count:0 };
+      const lp   = Math.round(info.avgLoad * 100);
+      const c    = CTX_DIR_COLORS[dir];
+      return `<div class="ctx-load-row">
+        <span style="font-size:10px;color:${c};width:16px;text-align:right">${CTX_DIR_SHORT[dir]}</span>
+        <div class="ctx-load-track">
+          <div class="ctx-load-fill" style="width:${lp}%;background:${c}"></div>
+        </div>
+        <span style="font-size:10px;color:var(--muted);min-width:46px;text-align:right">${lp}% ×${info.count}</span>
+      </div>`;
+    }).join('');
+  }
+
+  // Egység rács (GPU SM-analóg)
+  const grid = document.getElementById('ctxUnitGrid');
+  if (grid && d.units) {
+    grid.innerHTML = d.units.map(u => {
+      const c    = CTX_DIR_COLORS[u.type] || '#888';
+      const size = 9 + u.depth * 4;           // mélység → nagyobb (mászó beágyazás)
+      const alpha = 0.2 + u.heat * 0.8;
+      const glow  = u.load > 0.5 ? `0 0 ${Math.round(u.load*6)}px ${c}` : 'none';
+      const hiCls = u.load > 0.65 ? ' hi-load' : '';
+      const embCls = u.depth > 0 ? ' embedded' : '';
+      const rot  = u.depth > 0 ? `rotate(${u.depth * 45}deg)` : 'none'; // forgó - beágyazott
+      return `<div class="ctx-unit${hiCls}${embCls}"
+        title="${u.id} [${u.type}] d${u.depth} load:${Math.round(u.load*100)}% heat:${Math.round(u.heat*100)}% tasks:${u.tasks}"
+        style="width:${size}px;height:${size}px;background:${c};opacity:${alpha.toFixed(2)};
+        box-shadow:${glow};transform:${rot}"></div>`;
+    }).join('');
+  }
+
+  const uc = document.getElementById('ctxUnitCount');
+  if (uc) uc.textContent = d.unitCount || 0;
+  const md = document.getElementById('ctxMaxDepth');
+  if (md) md.textContent = d.maxDepth || 0;
+  const tc = document.getElementById('ctxTaskCount');
+  if (tc) tc.textContent = (d.units || []).reduce((s, u) => s + (u.tasks||0), 0);
+
+  // Throttle info
+  const thr = document.getElementById('ctxThrottle');
+  if (thr) {
+    const ctxP  = Math.round((band.ctxMult  || 1) * 100);
+    const predP = Math.round((band.predictMult || 1) * 100);
+    const dly   = band.delayMs || 0;
+    thr.textContent = `ctx ${ctxP}% · pred ${predP}% · delay ${dly}ms`;
+    thr.style.color = pct > 60 ? bc : 'var(--muted)';
+  }
+
+  // Feladat napló (utolsó 5)
+  const log = document.getElementById('ctxLog');
+  if (log && d.log) {
+    log.innerHTML = [...d.log].reverse().slice(0,5).map(l => {
+      const c   = CTX_DIR_COLORS[l.type] || '#888';
+      const age = ((Date.now() - l.ts) / 1000).toFixed(1);
+      const sym = l.phase === 'acquire' ? '▶' : '◀';
+      return `<div style="color:${c};opacity:0.75">${sym} ${l.type} ${Math.round(l.complexity*100)}% · ${age}s</div>`;
+    }).join('');
+  }
+}
+
+async function fetchCortex() {
+  try {
+    const r = await fetch('/api/cortex');
+    if (r.ok) renderCortex(await r.json());
+  } catch { /* szerver offline – silent */ }
+}
+
+let _cortexTimer = null;
+function startCortexPoll() {
+  fetchCortex();
+  _cortexTimer = setInterval(fetchCortex, 2000);
+}
+
+/* ══════════════════════════════════════════════════════════════════════════════
    INIT
 ══════════════════════════════════════════════════════════════════════════════ */
 async function init() {
@@ -1696,6 +1899,7 @@ async function init() {
   renderBalloon(state.reticleAngle, state.tension, state.resonance, state.step, state.matrixEnergy);
   renderVibration({ freqHz:0, ampNorm:0, arcM:0, wavelengthM:0, note:'-' }, 0);
   updateSelfStruct();
+  startCortexPoll();
 }
 
 init();
