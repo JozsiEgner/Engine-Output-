@@ -3,294 +3,361 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>ÉZÓ AGENT AI – Geo-Matematikai Döntő Ügynök</title>
+<title>ÉZÓ // CORE KERNEL</title>
 <style>
-  :root {
-    --north:  #78c4ff;
-    --east:   #8be28b;
-    --south:  #ff9b9b;
-    --west:   #d7a7ff;
-    --bg:     #000a1e;
-    --bg2:    #050f28;
-    --bg3:    #0a1535;
-    --border: rgba(255,155,155,.15);
-    --text:   #90b8d8;
-    --gold:   #ffc96b;
-  }
-  * { box-sizing: border-box; margin: 0; padding: 0; }
-  body {
-    background: var(--bg);
-    color: var(--text);
-    font: 12px/1.6 'Courier New', monospace;
-    min-height: 100vh;
-    padding: 0;
-  }
+:root {
+  --n: #00d4ff;   /* north – cyan */
+  --e: #00ff88;   /* east  – green */
+  --s: #ff4488;   /* south – pink/red DÖNTŐ */
+  --w: #aa44ff;   /* west  – purple */
+  --gold: #ffcc00;
+  --bg: #000308;
+  --panel: rgba(0,8,20,.85);
+  --glow-s: 0 0 20px rgba(255,68,136,.4);
+  --glow-n: 0 0 20px rgba(0,212,255,.4);
+  --glow-e: 0 0 20px rgba(0,255,136,.4);
+  --glow-w: 0 0 20px rgba(170,68,255,.4);
+}
+* { margin:0; padding:0; box-sizing:border-box; }
 
-  /* ── Header ── */
-  header {
-    background: linear-gradient(135deg, #0a0015, #000a1e 50%, #001020);
-    border-bottom: 1px solid var(--border);
-    padding: 16px 24px;
-    display: flex;
-    align-items: center;
-    gap: 16px;
-  }
-  .logo {
-    width: 44px; height: 44px;
-    border-radius: 50%;
-    border: 2px solid var(--south);
-    display: flex; align-items: center; justify-content: center;
-    font-size: 22px;
-    background: radial-gradient(circle, rgba(255,155,155,.15), transparent 70%);
-    animation: pulse 3s ease-in-out infinite;
-  }
-  @keyframes pulse { 0%,100%{box-shadow:0 0 8px var(--south)} 50%{box-shadow:0 0 22px var(--south)} }
-  header h1 { font-size: 18px; letter-spacing: 4px; color: var(--south); }
-  header p  { font-size: 9px;  letter-spacing: 2px; color: #506070; text-transform: uppercase; margin-top: 2px; }
-  .model-pill {
-    margin-left: auto;
-    font-size: 9px;
-    padding: 4px 10px;
-    border-radius: 12px;
-    border: 1px solid rgba(255,155,155,.3);
-    color: var(--south);
-    background: rgba(255,155,155,.05);
-    letter-spacing: 1px;
-  }
-  .model-pill.ready { border-color: rgba(139,226,139,.3); color: var(--east); background: rgba(139,226,139,.05); }
+body {
+  background: var(--bg);
+  color: #8ab4d4;
+  font: 11px/1.5 'Courier New', monospace;
+  min-height: 100vh;
+  overflow-x: hidden;
+}
 
-  /* ── Layout ── */
-  .container { display: grid; grid-template-columns: 1fr 340px; gap: 0; height: calc(100vh - 77px); }
-  .main { overflow-y: auto; padding: 20px; display: flex; flex-direction: column; gap: 16px; }
-  .sidebar { border-left: 1px solid var(--border); overflow-y: auto; padding: 16px; display: flex; flex-direction: column; gap: 12px; }
+/* ── Starfield background ─────────────────────────────── */
+#stars {
+  position: fixed; inset: 0; z-index: 0; pointer-events: none;
+  background: radial-gradient(ellipse at 20% 50%, rgba(0,40,80,.3) 0%, transparent 60%),
+              radial-gradient(ellipse at 80% 20%, rgba(80,0,80,.2) 0%, transparent 50%),
+              #000308;
+}
 
-  /* ── Cards ── */
-  .card {
-    background: var(--bg2);
-    border: 1px solid var(--border);
-    border-radius: 10px;
-    overflow: hidden;
-  }
-  .card-head {
-    padding: 10px 14px;
-    background: linear-gradient(90deg, rgba(255,155,155,.06), transparent);
-    border-bottom: 1px solid var(--border);
-    font-size: 9px;
-    letter-spacing: 2px;
-    color: var(--south);
-    text-transform: uppercase;
-    display: flex;
-    align-items: center;
-    gap: 8px;
-  }
-  .card-head.north { color: var(--north); background: linear-gradient(90deg, rgba(120,196,255,.06), transparent); }
-  .card-head.east  { color: var(--east);  background: linear-gradient(90deg, rgba(139,226,139,.06), transparent); }
-  .card-head.west  { color: var(--west);  background: linear-gradient(90deg, rgba(215,167,255,.06), transparent); }
-  .card-body { padding: 14px; }
+/* ── Header ───────────────────────────────────────────── */
+header {
+  position: relative; z-index: 10;
+  background: linear-gradient(180deg, rgba(0,20,40,.95), rgba(0,8,20,.9));
+  border-bottom: 1px solid rgba(255,68,136,.25);
+  padding: 0 24px;
+  display: flex; align-items: center; gap: 20px;
+  height: 64px;
+  box-shadow: 0 2px 40px rgba(255,68,136,.15);
+}
+.hex-logo {
+  width: 46px; height: 46px;
+  position: relative;
+  flex-shrink: 0;
+}
+.hex-logo svg { width: 100%; height: 100%; }
+header h1 {
+  font-size: 22px; letter-spacing: 6px;
+  background: linear-gradient(90deg, var(--s), #ff88bb, var(--n));
+  -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+  font-weight: 900;
+}
+header .sub {
+  font-size: 8px; letter-spacing: 3px; color: #304050;
+  text-transform: uppercase; margin-top: 2px;
+}
+.header-right { margin-left: auto; display: flex; gap: 12px; align-items: center; }
+.pill {
+  padding: 4px 12px; border-radius: 20px; font-size: 9px;
+  letter-spacing: 1px; text-transform: uppercase;
+  border: 1px solid rgba(255,68,136,.3);
+  color: var(--s); background: rgba(255,68,136,.07);
+}
+.pill.ok { border-color: rgba(0,255,136,.3); color: var(--e); background: rgba(0,255,136,.07); }
+.live-dot {
+  width: 8px; height: 8px; border-radius: 50%;
+  background: var(--s); box-shadow: var(--glow-s);
+  animation: blink 1.4s ease-in-out infinite;
+}
+@keyframes blink { 0%,100%{opacity:1} 50%{opacity:.2} }
 
-  /* ── Input area ── */
-  textarea {
-    width: 100%;
-    background: var(--bg3);
-    border: 1px solid rgba(255,155,155,.2);
-    border-radius: 6px;
-    color: #c0d8f0;
-    font: 12px 'Courier New', monospace;
-    padding: 10px;
-    resize: vertical;
-    min-height: 80px;
-    outline: none;
-    transition: border-color .2s;
-  }
-  textarea:focus { border-color: rgba(255,155,155,.5); }
+/* ── Layout ───────────────────────────────────────────── */
+.grid {
+  position: relative; z-index: 5;
+  display: grid;
+  grid-template-columns: 300px 1fr 260px;
+  grid-template-rows: auto 1fr;
+  gap: 0;
+  height: calc(100vh - 64px);
+}
 
-  .controls {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 8px;
-    margin-top: 10px;
-    align-items: center;
-  }
+/* ── Panel base ───────────────────────────────────────── */
+.panel {
+  background: var(--panel);
+  backdrop-filter: blur(4px);
+  border-right: 1px solid rgba(255,255,255,.04);
+}
+.panel-head {
+  padding: 10px 16px;
+  font-size: 8px; letter-spacing: 2px; text-transform: uppercase;
+  border-bottom: 1px solid rgba(255,255,255,.05);
+  display: flex; align-items: center; gap: 8px;
+}
+.panel-head.s { color: var(--s); border-bottom-color: rgba(255,68,136,.2); }
+.panel-head.n { color: var(--n); border-bottom-color: rgba(0,212,255,.2); }
+.panel-head.e { color: var(--e); border-bottom-color: rgba(0,255,136,.2); }
+.panel-head.w { color: var(--w); border-bottom-color: rgba(170,68,255,.2); }
+.panel-body { padding: 14px; overflow-y: auto; height: calc(100% - 36px); }
 
-  button {
-    padding: 7px 16px;
-    border-radius: 6px;
-    border: 1px solid var(--south);
-    background: rgba(255,155,155,.08);
-    color: var(--south);
-    font: 10px 'Courier New', monospace;
-    letter-spacing: 1px;
-    cursor: pointer;
-    text-transform: uppercase;
-    transition: background .15s, border-color .15s;
-  }
-  button:hover   { background: rgba(255,155,155,.18); }
-  button.east    { border-color: var(--east); color: var(--east); background: rgba(139,226,139,.05); }
-  button.east:hover { background: rgba(139,226,139,.15); }
-  button.north   { border-color: var(--north); color: var(--north); background: rgba(120,196,255,.05); }
-  button.north:hover { background: rgba(120,196,255,.15); }
-  button.west    { border-color: var(--west); color: var(--west); background: rgba(215,167,255,.05); }
-  button.west:hover { background: rgba(215,167,255,.15); }
-  button:disabled { opacity: .35; pointer-events: none; }
+/* ── Center canvas panel ──────────────────────────────── */
+.center {
+  display: flex; flex-direction: column; align-items: center;
+  border-right: 1px solid rgba(255,255,255,.04);
+  overflow-y: auto;
+  padding: 20px 16px;
+  gap: 16px;
+}
 
-  label { font-size: 9px; color: #506070; letter-spacing: 1px; text-transform: uppercase; }
-  input[type=range] { accent-color: var(--south); width: 120px; cursor: pointer; }
-  select {
-    background: var(--bg3);
-    border: 1px solid rgba(255,155,155,.2);
-    color: #c0d8f0;
-    padding: 5px 8px;
-    border-radius: 4px;
-    font: 11px 'Courier New', monospace;
-  }
+/* ── Roulette canvas wrapper ──────────────────────────── */
+.canvas-wrap {
+  position: relative;
+  width: 380px; height: 380px;
+  flex-shrink: 0;
+}
+#roulette { display: block; }
 
-  /* ── Roulette Canvas ── */
-  .canvas-wrap {
-    position: relative;
-    width: 260px; height: 260px;
-    margin: 0 auto;
-  }
-  #rouletteCanvas { display: block; }
+/* Outer ring labels */
+.ring-label {
+  position: absolute;
+  font-size: 9px; letter-spacing: 2px; text-transform: uppercase; font-weight: 700;
+  transform: translate(-50%, -50%);
+}
+.ring-label.n { color: var(--n); top:  4%; left: 50%; }
+.ring-label.e { color: var(--e); top: 50%; right: -2%; left: auto; transform: translate(50%, -50%); }
+.ring-label.s { color: var(--s); top: 96%; left: 50%; text-shadow: var(--glow-s); }
+.ring-label.w { color: var(--w); top: 50%; left: -4%; transform: translate(-50%, -50%); }
 
-  /* ── Metrics grid ── */
-  .metrics { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
-  .metric {
-    background: var(--bg3);
-    border-radius: 6px;
-    padding: 8px 10px;
-    border: 1px solid rgba(255,255,255,.04);
-  }
-  .metric .val {
-    font-size: 20px;
-    font-weight: bold;
-    color: var(--south);
-    line-height: 1.1;
-  }
-  .metric .lbl { font-size: 8px; color: #506070; letter-spacing: 1px; margin-top: 2px; text-transform: uppercase; }
-  .metric.north .val { color: var(--north); }
-  .metric.east  .val { color: var(--east); }
-  .metric.west  .val { color: var(--west); }
-  .metric.gold  .val { color: var(--gold); }
+/* ── Metric strip ─────────────────────────────────────── */
+.metrics-strip {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 8px;
+  width: 100%;
+}
+.metric {
+  background: rgba(0,10,25,.7);
+  border: 1px solid rgba(255,255,255,.05);
+  border-radius: 8px;
+  padding: 10px 10px 8px;
+  position: relative; overflow: hidden;
+}
+.metric::before {
+  content: '';
+  position: absolute; bottom: 0; left: 0; right: 0; height: 2px;
+  background: currentColor; opacity: .4;
+}
+.metric.s { color: var(--s); }
+.metric.n { color: var(--n); }
+.metric.e { color: var(--e); }
+.metric.w { color: var(--w); }
+.metric.gold { color: var(--gold); }
+.metric .val {
+  font-size: 22px; font-weight: 900; line-height: 1;
+  text-shadow: 0 0 15px currentColor;
+  letter-spacing: -1px;
+}
+.metric .lbl { font-size: 7px; letter-spacing: 2px; color: #304050; margin-top: 4px; }
 
-  /* ── Layer tree ── */
-  .layer-item {
-    padding: 5px 8px;
-    border-radius: 4px;
-    border: 1px solid rgba(255,255,255,.05);
-    font-size: 10px;
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    margin-bottom: 4px;
-  }
-  .layer-dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
-  .layer-info { flex: 1; overflow: hidden; }
-  .layer-id { color: #405070; font-size: 9px; }
-  .layer-decisive { background: rgba(255,155,155,.08); border-color: rgba(255,155,155,.3); }
+/* ── Input area ───────────────────────────────────────── */
+.input-section { width: 100%; }
+textarea {
+  width: 100%; padding: 10px 12px;
+  background: rgba(0,15,35,.8);
+  border: 1px solid rgba(255,68,136,.2);
+  border-radius: 6px;
+  color: #a0c8e8; font: 12px 'Courier New', monospace;
+  resize: none; min-height: 70px; outline: none;
+  transition: border-color .2s;
+}
+textarea:focus { border-color: rgba(255,68,136,.5); box-shadow: 0 0 12px rgba(255,68,136,.1); }
+.btn-row { display: flex; gap: 8px; margin-top: 8px; flex-wrap: wrap; }
+button {
+  padding: 7px 16px; border-radius: 6px;
+  font: 9px 'Courier New', monospace; letter-spacing: 1px; text-transform: uppercase;
+  cursor: pointer; transition: all .15s;
+}
+.btn-s { background: rgba(255,68,136,.1); border: 1px solid rgba(255,68,136,.4); color: var(--s); }
+.btn-s:hover { background: rgba(255,68,136,.25); box-shadow: var(--glow-s); }
+.btn-n { background: rgba(0,212,255,.07); border: 1px solid rgba(0,212,255,.3); color: var(--n); }
+.btn-n:hover { background: rgba(0,212,255,.2); box-shadow: var(--glow-n); }
+.btn-e { background: rgba(0,255,136,.07); border: 1px solid rgba(0,255,136,.3); color: var(--e); }
+.btn-e:hover { background: rgba(0,255,136,.2); box-shadow: var(--glow-e); }
+.btn-w { background: rgba(170,68,255,.07); border: 1px solid rgba(170,68,255,.3); color: var(--w); }
+.btn-w:hover { background: rgba(170,68,255,.2); box-shadow: var(--glow-w); }
+button:disabled { opacity: .3; pointer-events: none; }
 
-  /* ── Output ── */
-  .output {
-    background: var(--bg3);
-    border-radius: 6px;
-    padding: 12px;
-    min-height: 80px;
-    font-size: 12px;
-    color: #c0d8f0;
-    line-height: 1.7;
-    border: 1px solid rgba(255,255,255,.05);
-    white-space: pre-wrap;
-    word-break: break-word;
-  }
-  .tag {
-    display: inline-block;
-    padding: 2px 7px;
-    border-radius: 10px;
-    font-size: 9px;
-    letter-spacing: 1px;
-    text-transform: uppercase;
-    margin-right: 4px;
-    border: 1px solid;
-  }
-  .tag-south { color: var(--south); border-color: rgba(255,155,155,.4); background: rgba(255,155,155,.06); }
-  .tag-north { color: var(--north); border-color: rgba(120,196,255,.4); background: rgba(120,196,255,.06); }
-  .tag-east  { color: var(--east);  border-color: rgba(139,226,139,.4); background: rgba(139,226,139,.06); }
-  .tag-west  { color: var(--west);  border-color: rgba(215,167,255,.4); background: rgba(215,167,255,.06); }
+/* ── AI output ────────────────────────────────────────── */
+.ai-out {
+  width: 100%;
+  background: rgba(0,10,25,.8);
+  border: 1px solid rgba(255,68,136,.15);
+  border-radius: 8px; padding: 14px;
+  min-height: 80px;
+  color: #b0d0f0; font-size: 12px; line-height: 1.7;
+  border-left: 3px solid var(--s);
+  box-shadow: inset 0 0 30px rgba(255,68,136,.03);
+}
+.ai-out .dir-badge {
+  display: inline-block; padding: 2px 8px; border-radius: 4px;
+  font-size: 8px; font-weight: 700; letter-spacing: 2px;
+  margin-right: 6px; vertical-align: middle;
+}
 
-  /* ── Binary ── */
-  .binary-grid {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 1px;
-    font-size: 7px;
-    font-family: monospace;
-    line-height: 1.2;
-  }
-  .byte-cell {
-    width: 22px;
-    height: 16px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    border-radius: 2px;
-    background: rgba(255,155,155,.06);
-    color: var(--south);
-    opacity: .6;
-    transition: background .1s;
-  }
-  .byte-cell.active { opacity: 1; background: rgba(255,155,155,.18); }
+/* ── Left panel: layer tree ───────────────────────────── */
+.layer-item {
+  display: flex; align-items: center; gap: 8px;
+  padding: 7px 8px; border-radius: 6px;
+  border: 1px solid rgba(255,255,255,.04);
+  margin-bottom: 5px;
+  transition: background .15s;
+}
+.layer-item:hover { background: rgba(255,255,255,.03); }
+.layer-item.decisive {
+  background: rgba(255,68,136,.06);
+  border-color: rgba(255,68,136,.25);
+}
+.l-dot {
+  width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0;
+  box-shadow: 0 0 6px currentColor;
+}
+.l-info { flex: 1; overflow: hidden; }
+.l-dir { font-size: 10px; font-weight: 700; letter-spacing: 1px; }
+.l-meta { font-size: 8px; color: #2a3a50; margin-top: 1px; }
+.heat-bar {
+  width: 30px; height: 3px; background: rgba(255,255,255,.06); border-radius: 2px; overflow: hidden;
+}
+.heat-fill { height: 100%; border-radius: 2px; background: var(--s); }
 
-  /* ── Direction buttons ── */
-  .dir-grid { display: grid; grid-template-columns: 1fr 1fr; grid-template-rows: 1fr 1fr; gap: 6px; width: 160px; margin: 0 auto; }
-  .dir-btn {
-    padding: 8px;
-    text-align: center;
-    border-radius: 6px;
-    font-size: 9px;
-    letter-spacing: 1px;
-    cursor: pointer;
-    border: 1px solid;
-    transition: all .15s;
-  }
-  .dir-btn:hover { opacity: .8; }
+/* ── Right panel ──────────────────────────────────────── */
+.gauge-wrap { display: flex; flex-direction: column; gap: 10px; }
+.gauge { }
+.gauge-label { display: flex; justify-content: space-between; margin-bottom: 3px; font-size: 9px; }
+.gauge-track { height: 5px; background: rgba(255,255,255,.05); border-radius: 3px; overflow: hidden; }
+.gauge-fill { height: 100%; border-radius: 3px; transition: width .5s cubic-bezier(.4,0,.2,1); }
 
-  /* ── Scrollbar ── */
-  ::-webkit-scrollbar { width: 4px; }
-  ::-webkit-scrollbar-track { background: var(--bg); }
-  ::-webkit-scrollbar-thumb { background: rgba(255,155,155,.2); border-radius: 2px; }
+/* ── Byte ring visualization ──────────────────────────── */
+#byteCanvas { display: block; margin: 0 auto; }
 
-  .spinner { display: inline-block; width: 10px; height: 10px; border: 2px solid rgba(255,155,155,.2); border-top-color: var(--south); border-radius: 50%; animation: spin .6s linear infinite; }
-  @keyframes spin { to { transform: rotate(360deg); } }
+/* ── Controls (sliders) ───────────────────────────────── */
+.ctrl { margin-bottom: 10px; }
+.ctrl label { display: flex; justify-content: space-between; font-size: 8px; color: #304050; margin-bottom: 3px; letter-spacing: 1px; text-transform: uppercase; }
+input[type=range] {
+  width: 100%; accent-color: var(--s); cursor: pointer;
+  height: 4px;
+}
+select {
+  width: 100%; background: rgba(0,10,25,.8); border: 1px solid rgba(255,68,136,.2);
+  color: #8ab4d4; padding: 5px 8px; border-radius: 4px;
+  font: 10px 'Courier New', monospace; outline: none;
+}
 
-  .bar { height: 4px; border-radius: 2px; background: var(--bg3); overflow: hidden; margin-top: 4px; }
-  .bar-fill { height: 100%; border-radius: 2px; transition: width .4s; }
+/* ── Reinforce grid ───────────────────────────────────── */
+.reinf-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 5px; }
+.reinf-grid button { padding: 5px; font-size: 8px; }
+
+/* ── Verdicts ─────────────────────────────────────────── */
+.verdict-chip {
+  display: inline-flex; align-items: center; gap: 4px;
+  padding: 3px 10px; border-radius: 12px; font-size: 8px;
+  letter-spacing: 1px; margin: 2px;
+  border: 1px solid rgba(255,255,255,.1);
+}
+
+/* ── Scrollbar ────────────────────────────────────────── */
+::-webkit-scrollbar { width: 3px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: rgba(255,68,136,.2); border-radius: 2px; }
+
+/* ── Spinner ──────────────────────────────────────────── */
+.spin {
+  display: inline-block; width: 10px; height: 10px;
+  border: 2px solid rgba(255,68,136,.2); border-top-color: var(--s);
+  border-radius: 50%; animation: rot .5s linear infinite;
+}
+@keyframes rot { to { transform: rotate(360deg); } }
+
+/* ── Scan line effect ─────────────────────────────────── */
+body::after {
+  content: ''; position: fixed; inset: 0; z-index: 1; pointer-events: none;
+  background: repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(0,0,0,.03) 2px, rgba(0,0,0,.03) 4px);
+}
 </style>
 </head>
 <body>
 
+<div id="stars"></div>
+
 <header>
-  <div class="logo">⬡</div>
-  <div>
-    <h1>ÉZÓ AGENT AI</h1>
-    <p>Geo-Matematikai Döntő Ügynök · Weyl / Arnold / Chebyshev · 1-Byte Forgási Tengely</p>
+  <div class="hex-logo">
+    <svg viewBox="0 0 46 46">
+      <polygon points="23,2 42,12 42,34 23,44 4,34 4,12" fill="none" stroke="rgba(255,68,136,.6)" stroke-width="1.5"/>
+      <polygon points="23,8 37,16 37,30 23,38 9,30 9,16" fill="none" stroke="rgba(255,68,136,.3)" stroke-width="1"/>
+      <text x="23" y="27" text-anchor="middle" fill="#ff4488" font-size="14" font-family="Courier New" font-weight="900">Ε</text>
+    </svg>
   </div>
-  <div class="model-pill" id="modelPill">Betöltés…</div>
+  <div>
+    <h1>ÉZÓ // CORE KERNEL</h1>
+    <div class="sub">Geo-Matematikai Döntő Ügynök · Weyl · Arnold · Chebyshev</div>
+  </div>
+  <div class="header-right">
+    <div class="live-dot" id="liveDot"></div>
+    <div class="pill" id="modelPill">inicializálás…</div>
+    <div class="pill" id="enginePill">WEYL</div>
+  </div>
 </header>
 
-<div class="container">
-  <!-- ── Fő panel ── -->
-  <div class="main">
+<div class="grid">
 
-    <!-- Metrics -->
-    <div class="metrics">
-      <div class="metric">
+  <!-- ══ BAL PANEL: RÉTEG FA ══ -->
+  <div class="panel" style="grid-row:1/-1; overflow:hidden; display:flex; flex-direction:column;">
+    <div class="panel-head s">⬡ Réteg Fa <span style="margin-left:auto;font-size:9px" id="layerCount">2</span></div>
+    <div class="panel-body" id="layerTree" style="flex:1"></div>
+
+    <div style="padding:12px; border-top:1px solid rgba(255,255,255,.05)">
+      <div class="ctrl">
+        <label>Motor <span id="engVal">Weyl</span></label>
+        <select id="engineSel">
+          <option value="weyl">Weyl (φ arányszám)</option>
+          <option value="arnold">Arnold (macska térkép)</option>
+          <option value="chebyshev">Chebyshev (polinom)</option>
+        </select>
+      </div>
+      <div class="ctrl">
+        <label>Mátrix energia <span id="eVal">50</span>%</label>
+        <input type="range" id="energySlider" min="0" max="100" value="50">
+      </div>
+      <div class="ctrl">
+        <label>Tension (hajlítás) <span id="tVal">0.95</span></label>
+        <input type="range" id="tensionSlider" min="0" max="100" value="95">
+      </div>
+      <div class="ctrl">
+        <label>Extra rétegek <span id="lVal">0</span></label>
+        <input type="range" id="layersSlider" min="0" max="16" value="0">
+      </div>
+      <button class="btn-w" style="width:100%;margin-top:4px" id="addLayerBtn">+ RÉTEG SZÜLÉSE</button>
+    </div>
+  </div>
+
+  <!-- ══ KÖZÉP: ROULETTE + BEMENET + KIMENET ══ -->
+  <div class="center" style="grid-row:1/-1">
+
+    <!-- Metrics strip -->
+    <div class="metrics-strip">
+      <div class="metric s">
         <div class="val" id="mStep">0</div>
         <div class="lbl">Lépés</div>
       </div>
-      <div class="metric">
+      <div class="metric n">
         <div class="val" id="mAngle">0°</div>
         <div class="lbl">Irányzék szög</div>
       </div>
-      <div class="metric east">
+      <div class="metric e">
         <div class="val" id="mLayers">2</div>
         <div class="lbl">Aktív rétegek</div>
       </div>
@@ -300,543 +367,541 @@
       </div>
     </div>
 
-    <!-- 0-1 Roulette canvas + irány -->
-    <div class="card">
-      <div class="card-head">⊙ Geo-Matematikai Forgó Tér</div>
-      <div class="card-body" style="display:flex;gap:20px;align-items:center;flex-wrap:wrap">
-        <div class="canvas-wrap">
-          <canvas id="rouletteCanvas" width="260" height="260"></canvas>
-        </div>
-        <div style="flex:1;min-width:180px">
-          <div class="dir-grid" style="margin:0 0 16px">
-            <div class="dir-btn" id="dN" style="grid-column:1/-1;border-color:var(--north);color:var(--north)">É · ÉSZAK<br><span id="dNp" style="font-size:11px">–</span></div>
-            <div class="dir-btn" id="dW" style="border-color:var(--west);color:var(--west)">Ny · NYUGAT<br><span id="dWp" style="font-size:11px">–</span></div>
-            <div class="dir-btn" id="dE" style="border-color:var(--east);color:var(--east)">K · KELET<br><span id="dEp" style="font-size:11px">–</span></div>
-            <div class="dir-btn" id="dS" style="grid-column:1/-1;border-color:var(--south);color:var(--south)">D · DÉL [DÖNTŐ]<br><span id="dSp" style="font-size:11px">–</span></div>
-          </div>
-          <div style="display:flex;flex-direction:column;gap:8px">
-            <div>
-              <label>Motor</label>
-              <select id="engineSel" style="margin-top:3px;width:100%">
-                <option value="weyl">Weyl (Arány aránya φ)</option>
-                <option value="arnold">Arnold (Macska térkép)</option>
-                <option value="chebyshev">Chebyshev (Polinom)</option>
-              </select>
-            </div>
-            <div>
-              <label>Mátrix energia: <span id="energyVal">50</span></label>
-              <input type="range" id="energySlider" min="0" max="100" value="50" style="width:100%;margin-top:3px">
-            </div>
-            <div>
-              <label>Tension (hajlítás): <span id="tensionVal">0.95</span></label>
-              <input type="range" id="tensionSlider" min="0" max="100" value="95" style="width:100%;margin-top:3px">
-            </div>
-          </div>
-        </div>
+    <!-- Roulette canvas -->
+    <div class="canvas-wrap">
+      <span class="ring-label n">É · 450nm</span>
+      <span class="ring-label e">K · 530nm</span>
+      <span class="ring-label s">D · 680nm [DÖNTŐ]</span>
+      <span class="ring-label w">Ny · 405nm</span>
+      <canvas id="roulette" width="380" height="380"></canvas>
+    </div>
+
+    <!-- Input -->
+    <div class="input-section">
+      <textarea id="inputArea" rows="3" placeholder="Szöveg, kérdés, bináris adat… (Ctrl+Enter = feldolgoz)"></textarea>
+      <div class="btn-row">
+        <button class="btn-s" id="processBtn">⬡ FELDOLGOZ</button>
+        <button class="btn-n" id="binaryBtn">⊞ BINÁRIS</button>
+        <button class="btn-e" id="encDecBtn">↕ KÓD/DEKÓD</button>
       </div>
     </div>
 
-    <!-- Bemenet / Feldolgozás -->
-    <div class="card">
-      <div class="card-head east">⟶ Ézó Bemeneti Tér</div>
-      <div class="card-body">
-        <textarea id="inputArea" placeholder="Szöveg, kérdés, bináris adat, URL… Az Ézó Agent AI geo-matematikailag dolgozza fel és a döntő rétegen (south/680nm) keresztül ad választ."></textarea>
-        <div class="controls">
-          <button id="processBtn">⬡ FELDOLGOZ</button>
-          <button class="east" id="binaryBtn">⊞ BINÁRIS MÓD</button>
-          <button class="north" id="encodeDecodeBtn">↕ KÓD/DEKÓD</button>
-          <button class="west" id="addLayerBtn">+ RÉTEG</button>
-          <div style="flex:1"></div>
-          <div>
-            <label>Extra rétegek: <span id="layersVal">0</span></label>
-            <input type="range" id="layersSlider" min="0" max="16" value="0" style="width:80px;margin-left:6px">
-          </div>
-        </div>
-      </div>
+    <!-- AI output -->
+    <div class="ai-out" id="aiOut">
+      <span style="color:#1a2a3a">⟳ Várakozás a bemenetre…</span>
     </div>
 
-    <!-- AI Kimenet (DeepSeek) -->
-    <div class="card">
-      <div class="card-head">🧠 Döntő Réteg Kimenet (south · 680nm · vörös)</div>
-      <div class="card-body">
-        <div class="output" id="aiOutput">Várakozás a bemenetre…</div>
-        <div style="margin-top:10px;display:flex;gap:8px;align-items:center">
-          <span class="tag tag-south" id="decisiveTag">–</span>
-          <span style="font-size:9px;color:#506070" id="verdictText">–</span>
-          <div style="flex:1"></div>
-          <span style="font-size:9px;color:#405060" id="msText">–</span>
+    <!-- Verdict row -->
+    <div id="verdictRow" style="width:100%;display:flex;gap:6px;flex-wrap:wrap;align-items:center">
+      <span class="verdict-chip" id="decisiveChip" style="color:var(--s);border-color:rgba(255,68,136,.3)">–</span>
+      <span style="font-size:9px;color:#304050;flex:1" id="verdictText"></span>
+      <span style="font-size:9px;color:#2a3a50" id="msText"></span>
+    </div>
+  </div>
+
+  <!-- ══ JOBB PANEL ══ -->
+  <div class="panel" style="grid-row:1/-1; overflow:hidden; display:flex; flex-direction:column;">
+    <div class="panel-head n">⊙ Rendszer Állapot</div>
+    <div class="panel-body" style="flex:1; display:flex; flex-direction:column; gap:12px; overflow-y:auto">
+
+      <!-- Gauges -->
+      <div class="gauge-wrap">
+        <div class="gauge">
+          <div class="gauge-label"><span style="color:#304050">Termikus terhelés</span><span id="gThermal" style="color:var(--s)">0%</span></div>
+          <div class="gauge-track"><div class="gauge-fill" id="gThermalF" style="background:var(--s);width:0%"></div></div>
+        </div>
+        <div class="gauge">
+          <div class="gauge-label"><span style="color:#304050">Pillér integritás</span><span id="gInteg" style="color:var(--gold)">–</span></div>
+          <div class="gauge-track"><div class="gauge-fill" id="gIntegF" style="background:var(--gold);width:0%"></div></div>
+        </div>
+        <div class="gauge">
+          <div class="gauge-label"><span style="color:#304050">Bináris pontosság</span><span id="gBin" style="color:var(--n)">–</span></div>
+          <div class="gauge-track"><div class="gauge-fill" id="gBinF" style="background:var(--n);width:0%"></div></div>
+        </div>
+        <div class="gauge">
+          <div class="gauge-label"><span style="color:#304050">Döntő rezonancia</span><span id="gRes" style="color:var(--w)">–</span></div>
+          <div class="gauge-track"><div class="gauge-fill" id="gResF" style="background:var(--w);width:0%"></div></div>
         </div>
       </div>
-    </div>
 
-    <!-- Bináris tengely -->
-    <div class="card">
-      <div class="card-head north">⊡ 1-Byte Forgási Tengely (360 × 1 byte)</div>
-      <div class="card-body">
-        <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin-bottom:10px">
-          <div class="metric north" style="min-width:110px">
-            <div class="val" id="binaryAccuracy">–</div>
-            <div class="lbl">Visszaolvasás %</div>
-          </div>
-          <div style="flex:1">
-            <div style="font-size:9px;color:#506070;margin-bottom:4px">TENGELY TELÍTETTSÉG</div>
-            <div class="bar"><div class="bar-fill" id="axisBar" style="background:var(--north);width:0%"></div></div>
-            <div style="font-size:9px;color:#405060;margin-top:3px" id="axisInfo">0 / 360 pozíció</div>
-          </div>
+      <!-- Irány eloszlás -->
+      <div>
+        <div class="panel-head n" style="padding:6px 0;margin-bottom:8px;border:none">Irány eloszlás</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px">
+          <div style="color:var(--n)"><div style="font-size:15px;font-weight:900" id="dN">–</div><div style="font-size:7px;color:#304050">É · ÉSZAK</div></div>
+          <div style="color:var(--e)"><div style="font-size:15px;font-weight:900" id="dE">–</div><div style="font-size:7px;color:#304050">K · KELET</div></div>
+          <div style="color:var(--s)"><div style="font-size:15px;font-weight:900" id="dS">–</div><div style="font-size:7px;color:#304050">D · DÉL</div></div>
+          <div style="color:var(--w)"><div style="font-size:15px;font-weight:900" id="dW">–</div><div style="font-size:7px;color:#304050">Ny · NYUGAT</div></div>
         </div>
-        <div class="binary-grid" id="binaryGrid">
-          <!-- Feltöltve JS-ből -->
+      </div>
+
+      <!-- 1-Byte tengely mini ring -->
+      <div>
+        <div class="panel-head n" style="padding:6px 0;margin-bottom:6px;border:none">1-Byte Forgási Tengely</div>
+        <canvas id="byteCanvas" width="220" height="220"></canvas>
+        <div style="display:flex;justify-content:space-between;margin-top:4px;font-size:8px;color:#2a3a50">
+          <span id="axisInfo">0 / 360</span>
+          <span id="axisAccuracy" style="color:var(--n)">0%</span>
         </div>
+      </div>
+
+      <!-- Visszacsatolás -->
+      <div>
+        <div class="panel-head w" style="padding:6px 0;margin-bottom:6px;border:none">Visszacsatolás (tanulás)</div>
+        <div class="reinf-grid">
+          <button class="btn-n" onclick="reinforce('north', .01)">É ++</button>
+          <button class="btn-n" onclick="reinforce('north',-.005)" style="opacity:.7">É −</button>
+          <button class="btn-e" onclick="reinforce('east', .01)">K ++</button>
+          <button class="btn-e" onclick="reinforce('east',-.005)" style="opacity:.7">K −</button>
+          <button class="btn-s" onclick="reinforce('south',.01)">D ++</button>
+          <button class="btn-s" onclick="reinforce('south',-.005)" style="opacity:.7">D −</button>
+          <button class="btn-w" onclick="reinforce('west', .01)">Ny ++</button>
+          <button class="btn-w" onclick="reinforce('west',-.005)" style="opacity:.7">Ny −</button>
+        </div>
+        <div id="reinforceMsg" style="font-size:8px;color:#304050;text-align:center;margin-top:5px;min-height:14px"></div>
+      </div>
+
+      <!-- Memory -->
+      <div style="font-size:8px;color:#2a3a50;margin-top:auto;padding-top:8px;border-top:1px solid rgba(255,255,255,.04)">
+        <div>Memória döntések: <span style="color:#3a5070" id="sMemory">0</span></div>
+        <div>Max réteg mélység: <span style="color:#3a5070" id="sDepth">1</span></div>
+        <div>Cortex thermal: <span style="color:var(--s)" id="sCortex">0%</span></div>
       </div>
     </div>
   </div>
 
-  <!-- ── Jobb oldal panel ── -->
-  <div class="sidebar">
-
-    <!-- Rendszer állapot -->
-    <div class="card">
-      <div class="card-head">⊛ Rendszer</div>
-      <div class="card-body" style="display:flex;flex-direction:column;gap:6px">
-        <div class="metric">
-          <div class="val" id="sThermal">0%</div>
-          <div class="lbl">Termikus terhelés</div>
-          <div class="bar"><div class="bar-fill" id="thermalBar" style="background:var(--east);width:0%"></div></div>
-        </div>
-        <div class="metric">
-          <div class="val" id="sIntegrity">–</div>
-          <div class="lbl">Pillér integritás</div>
-          <div class="bar"><div class="bar-fill" id="integrityBar" style="background:var(--gold);width:0%"></div></div>
-        </div>
-        <div class="metric">
-          <div class="val" id="sDepth">1</div>
-          <div class="lbl">Max réteg mélység</div>
-        </div>
-        <div class="metric">
-          <div class="val" id="sMemory">0</div>
-          <div class="lbl">Memória (döntések)</div>
-        </div>
-      </div>
-    </div>
-
-    <!-- Réteg fa -->
-    <div class="card" style="flex:1">
-      <div class="card-head east">⬡ Réteg Fa (végtelen)</div>
-      <div class="card-body">
-        <div id="layerTree" style="max-height:300px;overflow-y:auto"></div>
-      </div>
-    </div>
-
-    <!-- Súlyok -->
-    <div class="card">
-      <div class="card-head west">⊗ Adaptív Súlyok</div>
-      <div class="card-body">
-        <div id="weightsGrid" style="display:flex;flex-direction:column;gap:4px"></div>
-      </div>
-    </div>
-
-    <!-- Visszacsatolás -->
-    <div class="card">
-      <div class="card-head">↺ Visszacsatolás (tanulás)</div>
-      <div class="card-body">
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:8px">
-          <button class="north" onclick="reinforce('north',0.01)">É +</button>
-          <button class="north" onclick="reinforce('north',-0.005)">É –</button>
-          <button class="east" onclick="reinforce('east',0.01)">K +</button>
-          <button class="east" onclick="reinforce('east',-0.005)">K –</button>
-          <button style="border-color:var(--south);color:var(--south)" onclick="reinforce('south',0.01)">D +</button>
-          <button style="border-color:var(--south);color:var(--south)" onclick="reinforce('south',-0.005)">D –</button>
-          <button class="west" onclick="reinforce('west',0.01)">Ny +</button>
-          <button class="west" onclick="reinforce('west',-0.005)">Ny –</button>
-        </div>
-        <div id="reinforceMsg" style="font-size:9px;color:#506070;text-align:center"></div>
-      </div>
-    </div>
-  </div>
-</div>
+</div><!-- /grid -->
 
 <script>
 // ── Konstansok ────────────────────────────────────────────────────────────────
-const PHI      = (Math.sqrt(5) - 1) / 2;
-const DIR_COL  = { north: '#78c4ff', east: '#8be28b', south: '#ff9b9b', west: '#d7a7ff' };
-const DIR_HU   = { north: 'ÉSZAK', east: 'KELET', south: 'DÉL', west: 'NYUGAT' };
-const API      = '';  // same origin
+const PHI = (Math.sqrt(5) - 1) / 2;
+const COLS = { north:'#00d4ff', east:'#00ff88', south:'#ff4488', west:'#aa44ff' };
+const DIR_HU = { north:'ÉSZAK', east:'KELET', south:'DÉL', west:'NYUGAT' };
+const API = '';
 
-let state = {
-  step: 0, reticleAngle: 0, matrixEnergy: 50, tension: 0.95,
-  dist: { north:25, east:25, south:25, west:25 },
-  decisiveDir: 'east', confidence: 0, layers: 2, maxDepth: 1,
-  thermal: 0, integrity: 0, memory: 0, axisNonZero: 0, binaryAccuracy: 0,
+let S = {
+  step: 0, angle: 0, energy: 50, tension: 0.95, layers: 2, depth: 1,
+  dir: 'south', conf: 0, resonance: 0, thermal: 0, integrity: 0,
+  binAcc: 0, memory: 0, dist: {north:25,east:25,south:25,west:25},
+  slots: new Uint8Array(360), binaryMode: false,
+  t: 0,   // animation time
 };
 
-// ── Canvas – 0-1 Roulette ────────────────────────────────────────────────────
-const cvs = document.getElementById('rouletteCanvas');
-const ctx = cvs.getContext('2d');
-const CX = 130, CY = 130;
+// ── Roulette Canvas ───────────────────────────────────────────────────────────
+const rc  = document.getElementById('roulette');
+const rctx = rc.getContext('2d');
+const CX = 190, CY = 190, BASE_R = 130;
 
 function drawRoulette() {
-  ctx.clearRect(0, 0, 260, 260);
+  rctx.clearRect(0, 0, 380, 380);
+  S.t += 0.008;
 
-  // Háttér körök
-  [100, 80, 60, 40, 20].forEach((r, i) => {
-    ctx.beginPath();
-    ctx.arc(CX, CY, r, 0, Math.PI * 2);
-    ctx.strokeStyle = `rgba(255,155,155,${0.04 + i * 0.01})`;
-    ctx.lineWidth = 1;
-    ctx.stroke();
+  // Grid rings
+  [.22, .38, .55, .72, .9].forEach(f => {
+    rctx.beginPath();
+    rctx.arc(CX, CY, BASE_R * f, 0, Math.PI*2);
+    rctx.strokeStyle = `rgba(255,255,255,${0.02 + f * 0.015})`;
+    rctx.lineWidth = 1;
+    rctx.stroke();
   });
 
-  // Tengely vonalak (É/K/D/Ny)
+  // Axis lines É/K/D/Ny
   const dirs = [0, Math.PI/2, Math.PI, 3*Math.PI/2];
-  const dcols = [DIR_COL.north, DIR_COL.east, DIR_COL.south, DIR_COL.west];
+  const dcols = [COLS.north, COLS.east, COLS.south, COLS.west];
   dirs.forEach((a, i) => {
-    ctx.beginPath();
-    ctx.moveTo(CX, CY);
-    ctx.lineTo(CX + Math.sin(a) * 110, CY - Math.cos(a) * 110);
-    ctx.strokeStyle = `${dcols[i]}30`;
-    ctx.lineWidth = 1;
-    ctx.stroke();
+    const grd = rctx.createLinearGradient(CX, CY, CX+Math.sin(a)*BASE_R, CY-Math.cos(a)*BASE_R);
+    grd.addColorStop(0, `${dcols[i]}40`);
+    grd.addColorStop(1, `${dcols[i]}15`);
+    rctx.beginPath();
+    rctx.moveTo(CX, CY);
+    rctx.lineTo(CX + Math.sin(a)*BASE_R, CY - Math.cos(a)*BASE_R);
+    rctx.strokeStyle = grd;
+    rctx.lineWidth = 1;
+    rctx.stroke();
   });
 
-  // Burok (0-forma) – egy egyszerű polár görbe
-  const BASE_R = 72;
-  const tension = state.tension;
-  const resonance = 0.5;
-  ctx.beginPath();
-  for (let i = 0; i <= 360; i++) {
+  // Balloon (0-forma) – polar shape with tension/resonance
+  const tension = S.tension, res = 0.5;
+  const N = 360;
+  rctx.beginPath();
+  for (let i = 0; i <= N; i++) {
     const theta = i * Math.PI / 180;
-    const ra = state.reticleAngle * Math.PI / 180;
+    const ra = S.angle * Math.PI / 180;
     const diff = Math.atan2(Math.sin(theta - ra), Math.cos(theta - ra));
-    const indent = 0.22 * (1 - tension) * Math.exp(-(diff*diff) / (2*0.45*0.45));
-    const harm = 4 + Math.round(resonance * 8);
-    const wave = 0.08 * (1 - tension) * Math.sin(harm * theta + state.step * 0.02);
-    const r = BASE_R * Math.max(0.12, 1 + wave - indent);
+    const indent = 0.22*(1-tension)*Math.exp(-(diff*diff)/(2*0.45*0.45));
+    const harm = 4 + Math.round(res*8);
+    const wave = 0.08*(1-tension)*Math.sin(harm*theta + S.step*0.02);
+    const breath = 0.015*Math.sin(S.t*2.1);
+    const r = BASE_R * Math.max(0.15, 1 + wave - indent + breath);
     const x = CX + r * Math.sin(theta);
     const y = CY - r * Math.cos(theta);
-    i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+    i === 0 ? rctx.moveTo(x,y) : rctx.lineTo(x,y);
   }
-  ctx.closePath();
-  const grad = ctx.createRadialGradient(CX, CY, 10, CX, CY, BASE_R);
-  grad.addColorStop(0, 'rgba(255,155,155,.18)');
-  grad.addColorStop(1, 'rgba(255,155,155,.03)');
-  ctx.fillStyle = grad;
-  ctx.fill();
-  ctx.strokeStyle = 'rgba(255,155,155,.35)';
-  ctx.lineWidth = 1.5;
-  ctx.stroke();
+  rctx.closePath();
+  const bGrad = rctx.createRadialGradient(CX, CY, 5, CX, CY, BASE_R);
+  bGrad.addColorStop(0, 'rgba(255,68,136,.22)');
+  bGrad.addColorStop(.5,'rgba(255,68,136,.08)');
+  bGrad.addColorStop(1, 'rgba(255,68,136,.02)');
+  rctx.fillStyle = bGrad;
+  rctx.fill();
+  rctx.strokeStyle = `rgba(255,68,136,${0.35 + 0.15*Math.sin(S.t)})`;
+  rctx.lineWidth = 1.5;
+  rctx.stroke();
 
-  // 1-Byte tengely pontok (Weyl-sorozat)
-  const slots = state._slots || [];
-  for (let i = 0; i < Math.min(slots.length, 360); i++) {
-    if (slots[i] === 0) continue;
-    const pos = Math.round((i * PHI % 1) * 360) % 360;
-    const a   = pos * Math.PI / 180;
-    const r   = 18 + (slots[i] / 255) * 50;
-    const x   = CX + r * Math.sin(a);
-    const y   = CY - r * Math.cos(a);
-    ctx.beginPath();
-    ctx.arc(x, y, 1.5, 0, Math.PI * 2);
-    ctx.fillStyle = `rgba(120,196,255,${0.3 + (slots[i]/255)*0.6})`;
-    ctx.fill();
+  // 1-Byte axis particles
+  for (let i = 0; i < 360; i++) {
+    const b = S.slots[i];
+    if (!b) continue;
+    const posAngle = i * Math.PI / 180;
+    const r = 20 + (b/255) * 70 + 12*Math.sin(S.t*1.5 + i*0.1);
+    const x = CX + r*Math.sin(posAngle);
+    const y = CY - r*Math.cos(posAngle);
+    const alpha = 0.25 + (b/255)*0.65;
+    rctx.beginPath();
+    rctx.arc(x, y, 1.5 + (b/255)*1.5, 0, Math.PI*2);
+    rctx.fillStyle = `rgba(0,212,255,${alpha})`;
+    rctx.fill();
   }
 
-  // Irányzék (reticle – "1" forma)
-  const ra  = state.reticleAngle * Math.PI / 180;
-  const R   = 105;
-  ctx.beginPath();
-  ctx.moveTo(CX, CY);
-  ctx.lineTo(CX + R * Math.sin(ra), CY - R * Math.cos(ra));
-  ctx.strokeStyle = DIR_COL[state.decisiveDir] || '#ff9b9b';
-  ctx.lineWidth   = 2;
-  ctx.stroke();
+  // Reticle arm (irányzék)
+  const ra = S.angle * Math.PI / 180;
+  const reticleColor = COLS[S.dir] || '#ff4488';
+  // Glow
+  rctx.save();
+  rctx.shadowColor = reticleColor;
+  rctx.shadowBlur  = 12;
+  rctx.beginPath();
+  rctx.moveTo(CX, CY);
+  rctx.lineTo(CX + BASE_R*1.02*Math.sin(ra), CY - BASE_R*1.02*Math.cos(ra));
+  rctx.strokeStyle = reticleColor;
+  rctx.lineWidth = 2.5;
+  rctx.stroke();
+  // Tip
+  rctx.beginPath();
+  rctx.arc(CX + BASE_R*Math.sin(ra), CY - BASE_R*Math.cos(ra), 5, 0, Math.PI*2);
+  rctx.fillStyle = reticleColor;
+  rctx.fill();
+  rctx.restore();
 
-  // Irányzék hegy
-  ctx.beginPath();
-  ctx.arc(CX + R * Math.sin(ra), CY - R * Math.cos(ra), 4, 0, Math.PI * 2);
-  ctx.fillStyle = DIR_COL[state.decisiveDir] || '#ff9b9b';
-  ctx.fill();
+  // Center pulse
+  const pulseR = 6 + 2*Math.sin(S.t*3);
+  rctx.save();
+  rctx.shadowColor = '#ff4488'; rctx.shadowBlur = 15;
+  rctx.beginPath();
+  rctx.arc(CX, CY, pulseR, 0, Math.PI*2);
+  rctx.fillStyle = '#ff4488';
+  rctx.fill();
+  rctx.restore();
 
-  // Középpont
-  ctx.beginPath();
-  ctx.arc(CX, CY, 5, 0, Math.PI * 2);
-  ctx.fillStyle = '#ff9b9b';
-  ctx.fill();
+  // Angle label
+  rctx.fillStyle = 'rgba(100,140,160,.7)';
+  rctx.font = '10px Courier New';
+  rctx.fillText(`${S.angle.toFixed(1)}°`, CX+8, CY-10);
 
-  // Szög felirat
-  ctx.fillStyle = '#506070';
-  ctx.font = '9px Courier New';
-  ctx.fillText(`${state.reticleAngle.toFixed(1)}°`, CX + 8, CY - 8);
+  // Confidence arc (outer ring)
+  if (S.conf > 0) {
+    rctx.beginPath();
+    rctx.arc(CX, CY, BASE_R + 14, -Math.PI/2, -Math.PI/2 + S.conf * 2*Math.PI);
+    rctx.strokeStyle = `${reticleColor}80`;
+    rctx.lineWidth = 3;
+    rctx.stroke();
+  }
+}
+
+// ── Byte Ring Canvas ──────────────────────────────────────────────────────────
+const bc  = document.getElementById('byteCanvas');
+const bctx = bc.getContext('2d');
+const BCX = 110, BCY = 110, BR = 88;
+
+function drawByteRing() {
+  bctx.clearRect(0, 0, 220, 220);
+
+  // Track ring
+  bctx.beginPath();
+  bctx.arc(BCX, BCY, BR, 0, Math.PI*2);
+  bctx.strokeStyle = 'rgba(0,212,255,.07)';
+  bctx.lineWidth = 12;
+  bctx.stroke();
+
+  // Bytes as arc segments
+  for (let i = 0; i < 360; i++) {
+    const b = S.slots[i];
+    if (!b) continue;
+    const startA = (i - 1) * Math.PI/180 - Math.PI/2;
+    const endA   = i * Math.PI/180 - Math.PI/2;
+    const alpha  = 0.2 + (b/255)*0.75;
+    const hue    = 160 + (b/255)*80;
+    bctx.beginPath();
+    bctx.arc(BCX, BCY, BR, startA, endA);
+    bctx.strokeStyle = `hsla(${hue},100%,65%,${alpha})`;
+    bctx.lineWidth = 10;
+    bctx.stroke();
+  }
+
+  // Reticle pointer on byte ring
+  const ra2 = S.angle * Math.PI/180 - Math.PI/2;
+  bctx.save();
+  bctx.shadowColor = COLS[S.dir];
+  bctx.shadowBlur  = 10;
+  bctx.beginPath();
+  bctx.moveTo(BCX, BCY);
+  bctx.lineTo(BCX + (BR+8)*Math.cos(ra2), BCY + (BR+8)*Math.sin(ra2));
+  bctx.strokeStyle = COLS[S.dir];
+  bctx.lineWidth = 1.5;
+  bctx.stroke();
+  bctx.restore();
+
+  // Center
+  bctx.beginPath();
+  bctx.arc(BCX, BCY, 4, 0, Math.PI*2);
+  bctx.fillStyle = COLS[S.dir];
+  bctx.fill();
+
+  // Accuracy text center
+  bctx.fillStyle = 'rgba(0,212,255,.7)';
+  bctx.font = 'bold 16px Courier New';
+  bctx.textAlign = 'center';
+  bctx.fillText(`${S.binAcc.toFixed(0)}%`, BCX, BCY + 5);
+  bctx.font = '7px Courier New';
+  bctx.fillStyle = '#2a3a50';
+  bctx.fillText('PONTOSSÁG', BCX, BCY + 18);
+  bctx.textAlign = 'left';
 }
 
 // ── API hívások ───────────────────────────────────────────────────────────────
-
 async function boot() {
   try {
-    const r = await fetch(`${API}/api/ezo/boot`).then(x => x.json());
+    const r = await fetch(`${API}/api/ezo/boot`).then(x=>x.json());
     const pill = document.getElementById('modelPill');
     if (r.model_ready || r.modelReady) {
       pill.textContent = (r.model || 'modell') + ' ✓';
-      pill.className = 'model-pill ready';
+      pill.className = 'pill ok';
+      document.getElementById('liveDot').style.background = 'var(--e)';
     } else {
-      pill.textContent = 'OFFLINE MÓD';
-      pill.className = 'model-pill';
+      pill.textContent = 'OFFLINE';
     }
-    updateStatus();
-  } catch (e) {
-    document.getElementById('modelPill').textContent = 'Szerver nem elérhető';
+    await refreshStatus();
+  } catch {
+    document.getElementById('modelPill').textContent = 'szerver leállás';
   }
 }
 
-async function updateStatus() {
+async function refreshStatus() {
   try {
-    const s = await fetch(`${API}/api/ezo/status`).then(x => x.json());
-    state.layers   = (s.stack || s).activeLayers || 2;
-    state.maxDepth = (s.stack || s).maxDepth     || 1;
-    state.memory   = s.memory?.count || 0;
-    state.thermal  = s.cortex?.thermal || 0;
-    state.integrity= s.columnIntegrity || 0;
+    const s = await fetch(`${API}/api/ezo/status`).then(x=>x.json());
+    S.layers  = (s.stack||s).activeLayers || 2;
+    S.depth   = (s.stack||s).maxDepth     || 1;
+    S.memory  = s.memory?.count || 0;
+    S.thermal = s.cortex?.thermal || 0;
+    S.integrity = s.columnIntegrity || 0;
 
-    document.getElementById('mLayers').textContent = state.layers;
-    document.getElementById('sDepth').textContent  = state.maxDepth;
-    document.getElementById('sMemory').textContent = state.memory;
-    document.getElementById('sThermal').textContent = `${Math.round(state.thermal * 100)}%`;
-    document.getElementById('sIntegrity').textContent = `${Math.round(state.integrity * 100)}%`;
-    document.getElementById('thermalBar').style.width = `${state.thermal * 100}%`;
-    document.getElementById('integrityBar').style.width = `${state.integrity * 100}%`;
+    document.getElementById('mLayers').textContent = S.layers;
+    document.getElementById('gThermal').textContent = `${Math.round(S.thermal*100)}%`;
+    document.getElementById('gThermalF').style.width = `${S.thermal*100}%`;
+    document.getElementById('gInteg').textContent = `${Math.round(S.integrity*100)}%`;
+    document.getElementById('gIntegF').style.width = `${S.integrity*100}%`;
+    document.getElementById('sMemory').textContent = S.memory;
+    document.getElementById('sDepth').textContent = S.depth;
+    document.getElementById('sCortex').textContent = `${Math.round(S.thermal*100)}%`;
 
-    renderLayerTree((s.stack || s).layers || []);
-    renderWeights(s.weights || {});
+    renderLayerTree((s.stack||s).layers || []);
   } catch {}
 }
 
 async function processInput() {
-  const input   = document.getElementById('inputArea').value.trim();
-  const energy  = parseInt(document.getElementById('energySlider').value);
-  const layers  = parseInt(document.getElementById('layersSlider').value);
-  const engine  = document.getElementById('engineSel').value;
-  const tension = parseFloat(document.getElementById('tensionSlider').value) / 100;
-  const binary  = state._binaryMode || false;
-
+  const input  = document.getElementById('inputArea').value.trim();
   if (!input) return;
+  const energy  = +document.getElementById('energySlider').value;
+  const layers  = +document.getElementById('layersSlider').value;
 
   const btn = document.getElementById('processBtn');
   btn.disabled = true;
-  btn.innerHTML = '<span class="spinner"></span> Feldolgoz…';
-  document.getElementById('aiOutput').textContent = '⟳ Döntő réteg aktív…';
+  btn.innerHTML = '<span class="spin"></span> Feldolgoz…';
+  document.getElementById('aiOut').innerHTML = '<span style="color:#1a3050">⟳ Döntő réteg aktív…</span>';
 
   try {
     const res = await fetch(`${API}/api/ezo/process`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ input, matrixEnergy: energy, binaryMode: binary, layers }),
-    }).then(x => x.json());
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ input, matrixEnergy:energy, binaryMode:S.binaryMode, layers }),
+    }).then(x=>x.json());
 
-    // Állapot frissítés
-    state.step         = res.step || state.step + 1;
-    state.reticleAngle = res.reticleAngle || 0;
-    state.decisiveDir  = res.decisiveDir || 'east';
-    state.confidence   = res.confidence || 0;
+    S.step  = res.step || S.step+1;
+    S.angle = res.reticleAngle || 0;
+    S.dir   = res.decisiveDir  || 'south';
+    S.conf  = res.confidence   || 0;
+    S.resonance = res.resonance || 0;
+    S.integrity = res.columnIntegrity || 0;
+    S.depth     = res.maxDepth || S.depth;
 
-    document.getElementById('mStep').textContent = state.step;
-    document.getElementById('mAngle').textContent = `${(state.reticleAngle).toFixed(1)}°`;
-    document.getElementById('mConf').textContent = `${Math.round(state.confidence * 100)}%`;
+    document.getElementById('mStep').textContent  = S.step;
+    document.getElementById('mAngle').textContent = `${S.angle.toFixed(1)}°`;
+    document.getElementById('mConf').textContent  = `${Math.round(S.conf*100)}%`;
 
-    // Irány eloszlás
     const dist = res.outer?.distribution || {};
     ['north','east','south','west'].forEach(d => {
-      const el = document.getElementById(`d${d[0].toUpperCase()}p`);
-      if (el) el.textContent = `${dist[d] || 25}%`;
+      const el = document.getElementById(`d${d[0].toUpperCase()}`);
+      if (el) el.textContent = `${dist[d]||25}%`;
     });
-    state.dist = dist;
+    S.dist = dist;
 
-    // AI kimenet
-    const ai = res.ai;
-    const out = document.getElementById('aiOutput');
-    if (ai && ai.text && !ai.error) {
-      out.textContent = ai.text;
-    } else if (ai && ai.error) {
-      out.textContent = `[Offline] Döntő irány: ${DIR_HU[res.decisiveDir] || '?'} | Szög: ${res.reticleAngle?.toFixed(1)}° | Konfidencia: ${Math.round(res.confidence * 100)}%`;
+    const ai  = res.ai;
+    const out = document.getElementById('aiOut');
+    const dir = S.dir;
+    const badge = `<span class="dir-badge" style="background:${COLS[dir]}20;color:${COLS[dir]};border:1px solid ${COLS[dir]}40">${DIR_HU[dir]}</span>`;
+    if (ai?.text && !ai.error) {
+      out.innerHTML = badge + ai.text;
     } else {
-      out.textContent = `Döntő irány: ${DIR_HU[res.decisiveDir] || '?'} | Szög: ${res.reticleAngle?.toFixed(1)}° | Rétegek: ${res.layerCount}`;
+      out.innerHTML = badge + `Döntő irány aktiválva · szög ${S.angle.toFixed(1)}° · konfidencia ${Math.round(S.conf*100)}%`;
     }
 
-    // Döntő tag
-    const tag = document.getElementById('decisiveTag');
-    tag.textContent = DIR_HU[res.decisiveDir] || '?';
-    tag.className = `tag tag-${res.decisiveDir}`;
+    const chip = document.getElementById('decisiveChip');
+    chip.textContent = DIR_HU[S.dir];
+    chip.style.color = COLS[S.dir];
+    chip.style.borderColor = `${COLS[S.dir]}40`;
     document.getElementById('verdictText').textContent = res.verdict || '';
-    document.getElementById('msText').textContent = `${res.ms || 0}ms`;
+    document.getElementById('msText').textContent = `${res.ms||0}ms`;
 
-    // Bináris tengely
+    // Binary
     if (res.binary) {
-      state.binaryAccuracy = res.binary.accuracyPct || 0;
-      document.getElementById('binaryAccuracy').textContent = `${res.binary.accuracyPct}%`;
-      updateBinaryGrid(res.binary.text || '');
+      S.binAcc = res.binary.accuracyPct || 0;
+      document.getElementById('gBin').textContent = `${S.binAcc}%`;
+      document.getElementById('gBinF').style.width = `${S.binAcc}%`;
+      const text = res.binary.text || '';
+      for (let i=0; i<Math.min(text.length,360); i++) S.slots[i] = text.charCodeAt(i);
     }
 
-    // Pillér integritás
-    state.integrity = res.columnIntegrity || 0;
-    document.getElementById('sIntegrity').textContent = `${Math.round(state.integrity * 100)}%`;
-    document.getElementById('integrityBar').style.width = `${state.integrity * 100}%`;
-    document.getElementById('sDepth').textContent = res.maxDepth || 1;
+    // Gauges
+    document.getElementById('gRes').textContent = `${Math.round(S.resonance*100)}%`;
+    document.getElementById('gResF').style.width = `${S.resonance*100}%`;
+    document.getElementById('gInteg').textContent = `${Math.round(S.integrity*100)}%`;
+    document.getElementById('gIntegF').style.width = `${S.integrity*100}%`;
+    document.getElementById('sDepth').textContent = S.depth;
 
-    drawRoulette();
-    updateStatus();
+    const nz = S.slots.filter(b=>b!==0).length;
+    document.getElementById('axisInfo').textContent = `${nz} / 360`;
+    document.getElementById('axisAccuracy').textContent = `${S.binAcc}%`;
 
-  } catch (e) {
-    document.getElementById('aiOutput').textContent = `Hiba: ${e.message}`;
+    await refreshStatus();
+  } catch(e) {
+    document.getElementById('aiOut').textContent = `Hiba: ${e.message}`;
   } finally {
     btn.disabled = false;
     btn.innerHTML = '⬡ FELDOLGOZ';
   }
 }
 
-async function encodeDecodeMode() {
+async function encDecMode() {
   const text = document.getElementById('inputArea').value.trim();
   if (!text) return;
   try {
     const res = await fetch(`${API}/api/ezo/binary/encode-decode`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ text }),
-    }).then(x => x.json());
-    document.getElementById('aiOutput').textContent =
-      `Kódolás → Visszaolvasás\n\nEredeti:   "${res.original?.slice(0,80)}"\nDekódolt:  "${res.decoded?.slice(0,80)}"\nPontosság: ${res.accuracyPct}%\nEgyezés:   ${res.match ? '✓ IGEN' : '✗ NEM'}`;
-    document.getElementById('binaryAccuracy').textContent = `${res.accuracyPct}%`;
-    updateBinaryGrid(res.decoded || '');
-  } catch (e) {
-    document.getElementById('aiOutput').textContent = `Hiba: ${e.message}`;
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({text}),
+    }).then(x=>x.json());
+    S.binAcc = res.accuracyPct || 0;
+    document.getElementById('aiOut').innerHTML =
+      `<span style="color:#304050;font-size:9px">KÓD/DEKÓD TESZT</span><br><br>` +
+      `<span style="color:#3a5070">Eredeti:</span>  <span style="color:#80a0c0">"${(res.original||'').slice(0,80)}"</span><br>` +
+      `<span style="color:#3a5070">Dekódolt:</span> <span style="color:#80a0c0">"${(res.decoded||'').slice(0,80)}"</span><br><br>` +
+      `<span style="color:#304050">Pontosság:</span> <span style="color:var(--n);font-size:16px;font-weight:900">${res.accuracyPct}%</span>` +
+      `   <span style="color:#304050">Egyezés:</span> <span style="color:${res.match?'var(--e)':'var(--s)'};">${res.match?'✓ IGEN':'✗ NEM'}</span>`;
+    document.getElementById('gBin').textContent = `${S.binAcc}%`;
+    document.getElementById('gBinF').style.width = `${S.binAcc}%`;
+    const buf = (res.decoded||'');
+    for(let i=0;i<Math.min(buf.length,360);i++) S.slots[i]=buf.charCodeAt(i);
+  } catch(e) {
+    document.getElementById('aiOut').textContent = `Hiba: ${e.message}`;
   }
 }
 
 async function addLayer() {
-  const dir = ['north','east','south','west'][Math.floor(Math.random() * 4)];
+  const dirs = ['north','east','south','west'];
+  const dir  = dirs[Math.floor(Math.random()*4)];
   try {
     const res = await fetch(`${API}/api/ezo/layers/add`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ dir, matrixEnergy: parseInt(document.getElementById('energySlider').value) }),
-    }).then(x => x.json());
-    document.getElementById('aiOutput').textContent = `Új réteg szülve: ${res.id} (${res.dir}/mélység:${res.depth})`;
-    updateStatus();
-  } catch (e) {
-    document.getElementById('aiOutput').textContent = `Hiba: ${e.message}`;
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ dir, matrixEnergy:+document.getElementById('energySlider').value }),
+    }).then(x=>x.json());
+    document.getElementById('aiOut').innerHTML =
+      `<span style="color:${COLS[res.dir||dir]}">Új réteg szülve:</span> ${res.id} (${res.dir}/m:${res.depth})`;
+    await refreshStatus();
+  } catch(e) {
+    document.getElementById('aiOut').textContent = `Hiba: ${e.message}`;
   }
 }
 
 async function reinforce(dir, reward) {
   try {
     await fetch(`${API}/api/ezo/reinforce`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ dir, reward }),
-    }).then(x => x.json());
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({dir,reward}),
+    });
     const msg = document.getElementById('reinforceMsg');
-    msg.textContent = `${DIR_HU[dir]} ${reward > 0 ? '+' : ''}${reward} ✓`;
-    setTimeout(() => msg.textContent = '', 2000);
-    updateStatus();
+    const sign = reward>0?'+':'';
+    msg.innerHTML = `<span style="color:${COLS[dir]}">${DIR_HU[dir]} ${sign}${reward} tanulva ✓</span>`;
+    setTimeout(()=>msg.innerHTML='', 2000);
   } catch {}
 }
 
 // ── Réteg fa renderelés ───────────────────────────────────────────────────────
-
 function renderLayerTree(layers) {
   const el = document.getElementById('layerTree');
-  if (!layers || !layers.length) { el.innerHTML = '<div style="color:#405060;font-size:9px">Nincs réteg</div>'; return; }
+  document.getElementById('layerCount').textContent = layers.filter(l=>l.active!==false).length;
+  if (!layers.length) { el.innerHTML = '<div style="color:#1a2a40;font-size:9px;padding:4px">Nincs réteg</div>'; return; }
   el.innerHTML = layers.map(l => {
-    const col   = DIR_COL[l.dir] || '#fff';
-    const decl  = l.isDecisive || l.is_decisive;
-    const indent = '&nbsp;'.repeat(l.depth * 3);
-    return `<div class="layer-item${decl ? ' layer-decisive' : ''}">
-      <div class="layer-dot" style="background:${col}"></div>
-      <div class="layer-info">
-        ${indent}<span style="color:${col};font-size:10px">${l.dir?.toUpperCase() || '?'}</span>
-        ${decl ? '<span style="color:#ff9b9b;font-size:8px"> [DÖNTŐ]</span>' : ''}
-        <br><span class="layer-id">${l.id} · m${l.depth} · ${l.lambda_nm || l.lambdaNm || '?'}nm</span>
+    const col  = COLS[l.dir] || '#fff';
+    const dec  = l.isDecisive || l.is_decisive;
+    const ind  = '─'.repeat(l.depth);
+    const heat = l.heat || 0;
+    return `<div class="layer-item${dec?' decisive':''}">
+      <div class="l-dot" style="color:${col};background:${col}30;border:1px solid ${col}60"></div>
+      <div class="l-info">
+        <div class="l-dir" style="color:${col}">${ind}${l.dir?.toUpperCase()||'?'}${dec?' <span style="font-size:7px;color:#ff4488">[DÖNTŐ]</span>':''}</div>
+        <div class="l-meta">${l.id} · ${l.lambda_nm||l.lambdaNm||'?'}nm · m${l.depth}</div>
       </div>
-      <div style="font-size:9px;color:#405060">${(l.heat * 100 || 0).toFixed(0)}%</div>
+      <div class="heat-bar"><div class="heat-fill" style="width:${(heat*100).toFixed(0)}%;background:${col}"></div></div>
     </div>`;
   }).join('');
-}
-
-function renderWeights(weights) {
-  const el = document.getElementById('weightsGrid');
-  const keys = ['reticleAngle','matrixEnergy','tension','resonance','vibFreqHz','balloonRadius'].filter(k => weights[k] !== undefined);
-  el.innerHTML = keys.map(k => {
-    const v = weights[k];
-    return `<div style="display:flex;justify-content:space-between;font-size:9px;padding:2px 0;border-bottom:1px solid rgba(255,255,255,.03)">
-      <span style="color:#506070">${k}</span>
-      <span style="color:#d7a7ff">${(v * 100).toFixed(0)}%</span>
-    </div>`;
-  }).join('');
-}
-
-// ── Bináris grid renderelés ───────────────────────────────────────────────────
-
-function updateBinaryGrid(text) {
-  const grid = document.getElementById('binaryGrid');
-  const bytes = [];
-  for (let i = 0; i < Math.min(text.length, 90); i++) {
-    bytes.push(text.charCodeAt(i));
-  }
-  grid.innerHTML = bytes.map((b, i) => {
-    const active = b !== 0;
-    const hex    = b.toString(16).padStart(2, '0').toUpperCase();
-    return `<div class="byte-cell${active ? ' active' : ''}" title="pos:${i} byte:0x${hex}">${hex}</div>`;
-  }).join('');
-
-  const nonZero = bytes.filter(b => b !== 0).length;
-  state.axisNonZero = nonZero;
-  const pct = Math.round(nonZero / 360 * 100);
-  document.getElementById('axisBar').style.width = `${pct}%`;
-  document.getElementById('axisInfo').textContent = `${nonZero} / 360 pozíció (${pct}%)`;
 }
 
 // ── Vezérlők ─────────────────────────────────────────────────────────────────
-
 document.getElementById('processBtn').addEventListener('click', processInput);
-document.getElementById('encodeDecodeBtn').addEventListener('click', encodeDecodeMode);
+document.getElementById('encDecBtn').addEventListener('click', encDecMode);
 document.getElementById('addLayerBtn').addEventListener('click', addLayer);
 document.getElementById('inputArea').addEventListener('keydown', e => {
-  if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) processInput();
+  if (e.key==='Enter' && (e.ctrlKey||e.metaKey)) processInput();
 });
-
 document.getElementById('binaryBtn').addEventListener('click', function() {
-  state._binaryMode = !state._binaryMode;
-  this.style.opacity = state._binaryMode ? '1' : '0.5';
-  this.textContent   = state._binaryMode ? '⊞ BINÁRIS MÓD [BE]' : '⊞ BINÁRIS MÓD';
+  S.binaryMode = !S.binaryMode;
+  this.style.boxShadow = S.binaryMode ? 'var(--glow-n)' : 'none';
+  this.textContent = S.binaryMode ? '⊞ BINÁRIS [BE]' : '⊞ BINÁRIS';
 });
-
+document.getElementById('engineSel').addEventListener('change', function() {
+  document.getElementById('enginePill').textContent = this.value.toUpperCase();
+});
 document.getElementById('energySlider').addEventListener('input', function() {
-  state.matrixEnergy = parseInt(this.value);
-  document.getElementById('energyVal').textContent = this.value;
+  document.getElementById('eVal').textContent = this.value;
 });
 document.getElementById('tensionSlider').addEventListener('input', function() {
-  state.tension = parseInt(this.value) / 100;
-  document.getElementById('tensionVal').textContent = state.tension.toFixed(2);
+  S.tension = parseInt(this.value)/100;
+  document.getElementById('tVal').textContent = S.tension.toFixed(2);
 });
 document.getElementById('layersSlider').addEventListener('input', function() {
-  document.getElementById('layersVal').textContent = this.value;
+  document.getElementById('lVal').textContent = this.value;
 });
 
-// ── Auto frissítés ────────────────────────────────────────────────────────────
-
-function animateCanvas() {
-  // Passzív léptetés (vizuális)
-  state.reticleAngle = (state.reticleAngle + 0.15) % 360;
+// ── Animáció loop ─────────────────────────────────────────────────────────────
+function loop() {
+  S.angle = (S.angle + 0.12) % 360;
   drawRoulette();
-  requestAnimationFrame(animateCanvas);
+  drawByteRing();
+  requestAnimationFrame(loop);
 }
 
 // ── Init ──────────────────────────────────────────────────────────────────────
-
-drawRoulette();
-animateCanvas();
+loop();
 boot();
-setInterval(updateStatus, 5000);
-
-// Bináris grid inicializálás
-updateBinaryGrid('');
+setInterval(refreshStatus, 6000);
 </script>
 </body>
 </html>
