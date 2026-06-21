@@ -1,0 +1,348 @@
+<!DOCTYPE html>
+<html lang="hu">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>0–Roulette 1 – Vizuális szám demo</title>
+  <style>
+    :root {
+      --bg: #0f1115;
+      --panel: #171a21;
+      --line: #2b3140;
+      --text: #f3f5f7;
+      --muted: #a4acb9;
+      --accent: #d8b15a;
+      --accent-soft: rgba(216, 177, 90, 0.18);
+      --north: #78c4ff;
+      --east: #8be28b;
+      --south: #ff9b9b;
+      --west: #d7a7ff;
+    }
+
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: Inter, Arial, sans-serif;
+      background: radial-gradient(circle at top, #1a1f2b 0%, var(--bg) 55%);
+      color: var(--text);
+    }
+
+    .wrap {
+      min-height: 100vh;
+      display: grid;
+      grid-template-columns: 360px 1fr;
+    }
+
+    .sidebar {
+      padding: 22px;
+      border-right: 1px solid var(--line);
+      background: rgba(10, 12, 18, 0.65);
+      backdrop-filter: blur(8px);
+    }
+
+    h1 {
+      margin: 0 0 8px;
+      font-size: 24px;
+      letter-spacing: 0.02em;
+    }
+
+    .lead {
+      color: var(--muted);
+      line-height: 1.5;
+      margin: 0 0 18px;
+      font-size: 14px;
+    }
+
+    .card {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      padding: 16px;
+      margin-bottom: 14px;
+      box-shadow: 0 10px 30px rgba(0,0,0,0.18);
+    }
+
+    .label {
+      display: block;
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--muted);
+      margin-bottom: 8px;
+    }
+
+    input[type="range"] {
+      width: 100%;
+      accent-color: var(--accent);
+    }
+
+    .value {
+      margin-top: 8px;
+      font-size: 13px;
+      color: var(--accent);
+      font-weight: 700;
+    }
+
+    .grid4 {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+      margin-top: 12px;
+    }
+
+    .mini {
+      padding: 10px;
+      border-radius: 12px;
+      border: 1px solid var(--line);
+      background: rgba(255,255,255,0.02);
+    }
+
+    .mini b {
+      display: block;
+      font-size: 12px;
+      margin-bottom: 5px;
+    }
+
+    .mini span {
+      font-size: 18px;
+      font-weight: 700;
+    }
+
+    .stage {
+      position: relative;
+      display: grid;
+      place-items: center;
+      padding: 24px;
+    }
+
+    .sphere-area {
+      width: min(72vh, 72vw);
+      height: min(72vh, 72vw);
+      position: relative;
+      display: grid;
+      place-items: center;
+    }
+
+    .sphere {
+      width: 100%;
+      height: 100%;
+      border-radius: 50%;
+      position: relative;
+      background:
+        radial-gradient(circle at 35% 30%, rgba(255,255,255,0.22), transparent 18%),
+        radial-gradient(circle at center, rgba(216,177,90,0.13), rgba(216,177,90,0.04) 45%, rgba(0,0,0,0.28) 72%),
+        linear-gradient(145deg, #111722 0%, #090b10 100%);
+      border: 1px solid rgba(255,255,255,0.12);
+      box-shadow:
+        inset 0 0 60px rgba(255,255,255,0.03),
+        0 0 80px rgba(0,0,0,0.35),
+        0 0 40px rgba(216,177,90,0.08);
+      overflow: hidden;
+    }
+
+    .zero-ring {
+      position: absolute;
+      inset: 16%;
+      border-radius: 50%;
+      border: 24px solid rgba(216, 177, 90, 0.85);
+      box-shadow: 0 0 35px rgba(216,177,90,0.25), inset 0 0 25px rgba(255,255,255,0.08);
+    }
+
+    .roulette-arm {
+      position: absolute;
+      width: 50%;
+      height: 4px;
+      background: linear-gradient(90deg, rgba(216,177,90,0.15), rgba(216,177,90,0.95));
+      left: 50%;
+      top: 50%;
+      transform-origin: 0% 50%;
+      box-shadow: 0 0 12px rgba(216,177,90,0.5);
+    }
+
+    .arm-tip {
+      position: absolute;
+      right: -8px;
+      top: 50%;
+      width: 14px;
+      height: 14px;
+      transform: translateY(-50%);
+      background: var(--accent);
+      border-radius: 50%;
+      box-shadow: 0 0 16px rgba(216,177,90,0.9);
+    }
+
+    .core {
+      position: absolute;
+      width: 88px;
+      height: 88px;
+      border-radius: 50%;
+      background: radial-gradient(circle at 35% 35%, #fff4d2, #d8b15a 40%, #6d5220 100%);
+      display: grid;
+      place-items: center;
+      color: #221607;
+      font-weight: 800;
+      font-size: 14px;
+      text-align: center;
+      box-shadow: 0 0 24px rgba(216,177,90,0.45);
+      z-index: 3;
+    }
+
+    .endpoint {
+      position: absolute;
+      width: 108px;
+      text-align: center;
+      font-size: 12px;
+      color: var(--muted);
+    }
+
+    .endpoint::before {
+      content: "";
+      display: block;
+      width: 14px;
+      height: 14px;
+      border-radius: 50%;
+      margin: 0 auto 8px;
+      box-shadow: 0 0 16px currentColor;
+      background: currentColor;
+    }
+
+    .north { top: 18px; left: 50%; transform: translateX(-50%); color: var(--north); }
+    .east { right: -6px; top: 50%; transform: translateY(-50%); color: var(--east); }
+    .south { bottom: 18px; left: 50%; transform: translateX(-50%); color: var(--south); }
+    .west { left: -6px; top: 50%; transform: translateY(-50%); color: var(--west); }
+
+    .dominant {
+      position: absolute;
+      bottom: 26px;
+      right: 26px;
+      background: rgba(10,12,18,0.76);
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      padding: 14px 16px;
+      min-width: 220px;
+      backdrop-filter: blur(8px);
+    }
+
+    .dominant b { color: var(--accent); }
+    .dominant .big {
+      margin-top: 4px;
+      font-size: 22px;
+      font-weight: 800;
+    }
+
+    @media (max-width: 980px) {
+      .wrap { grid-template-columns: 1fr; }
+      .sidebar { border-right: 0; border-bottom: 1px solid var(--line); }
+      .sphere-area { width: min(92vw, 62vh); height: min(92vw, 62vh); }
+      .dominant { position: static; margin-top: 16px; }
+      .stage { padding-bottom: 32px; }
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <aside class="sidebar">
+      <h1>Vizuálisan megjeleníthető szám</h1>
+      <p class="lead">
+        Igen. Ez az első működő demo a labdaszerű 0-számhoz: egy bemenet érkezik be,
+        a szabályzó AGY leosztja az erőt a 4 fő irány felé, és kijelöl egy domináns kimenetet.
+      </p>
+
+      <div class="card">
+        <label class="label" for="energyInput">Bemenet / mátrix energia</label>
+        <input id="energyInput" type="range" min="0" max="100" value="64" />
+        <div id="energyValue" class="value">64 egység</div>
+      </div>
+
+      <div class="card">
+        <span class="label">Erőleosztás</span>
+        <div class="grid4">
+          <div class="mini"><b>0° / Észak</b><span id="w0">0</span>%</div>
+          <div class="mini"><b>90° / Kelet</b><span id="w90">0</span>%</div>
+          <div class="mini"><b>180° / Dél</b><span id="w180">0</span>%</div>
+          <div class="mini"><b>270° / Nyugat</b><span id="w270">0</span>%</div>
+        </div>
+      </div>
+
+      <div class="card">
+        <span class="label">Funkció</span>
+        <div style="color: var(--muted); font-size: 14px; line-height: 1.55;">
+          A központi mag a <b>szabályzó AGY</b>. A pointer a domináns kimeneti irányra áll.
+          A modell később endpoint, QR és calculation réteggel tovább bővíthető.
+        </div>
+      </div>
+    </aside>
+
+    <main class="stage">
+      <div class="sphere-area">
+        <div class="sphere">
+          <div class="zero-ring"></div>
+          <div class="endpoint north">0°<br>Észak</div>
+          <div class="endpoint east">90°<br>Kelet</div>
+          <div class="endpoint south">180°<br>Dél</div>
+          <div class="endpoint west">270°<br>Nyugat</div>
+          <div id="arm" class="roulette-arm"><div class="arm-tip"></div></div>
+          <div class="core">SZABÁLYZÓ<br>AGY</div>
+        </div>
+      </div>
+
+      <div class="dominant">
+        <div><b>Domináns kimenet</b></div>
+        <div id="dominantAngle" class="big">0°</div>
+        <div id="dominantLabel" style="color: var(--muted); margin-top: 4px;">Észak</div>
+      </div>
+    </main>
+  </div>
+
+  <script>
+    const energyInput = document.getElementById('energyInput');
+    const energyValue = document.getElementById('energyValue');
+    const arm = document.getElementById('arm');
+    const dominantAngle = document.getElementById('dominantAngle');
+    const dominantLabel = document.getElementById('dominantLabel');
+
+    const outputs = {
+      0: { label: 'Észak', node: document.getElementById('w0') },
+      90: { label: 'Kelet', node: document.getElementById('w90') },
+      180: { label: 'Dél', node: document.getElementById('w180') },
+      270: { label: 'Nyugat', node: document.getElementById('w270') }
+    };
+
+    function computeDistribution(input) {
+      const t = input / 100;
+      const north = Math.round(20 + t * 35);
+      const east = Math.round(15 + (1 - Math.abs(t - 0.65) * 1.6) * 30);
+      const south = Math.round(10 + (1 - t) * 28);
+      let west = 100 - north - east - south;
+
+      if (west < 0) west = 0;
+      const map = { 0: north, 90: east, 180: south, 270: west };
+
+      let dominant = 0;
+      Object.keys(map).forEach((k) => {
+        if (map[k] > map[dominant]) dominant = Number(k);
+      });
+
+      return { map, dominant };
+    }
+
+    function render() {
+      const input = Number(energyInput.value);
+      energyValue.textContent = input + ' egység';
+
+      const { map, dominant } = computeDistribution(input);
+
+      Object.entries(outputs).forEach(([angle, meta]) => {
+        meta.node.textContent = map[angle];
+      });
+
+      arm.style.transform = `rotate(${dominant - 90}deg)`;
+      dominantAngle.textContent = dominant + '°';
+      dominantLabel.textContent = outputs[dominant].label;
+    }
+
+    energyInput.addEventListener('input', render);
+    render();
+  </script>
+</body>
+</html>

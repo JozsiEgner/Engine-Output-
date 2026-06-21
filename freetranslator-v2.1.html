@@ -1,0 +1,1197 @@
+<!DOCTYPE html>
+<html lang="hu">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>FreeTranslator v2.1 · Ollama · 0-Roulette AGY</title>
+  <style>
+    :root {
+      --bg:      #080b12;
+      --panel:   #10141e;
+      --line:    #1e2535;
+      --text:    #e8ecf4;
+      --muted:   #7a8499;
+      --accent:  #d8b15a;
+      --north:   #78c4ff;   /* ~450nm kék – kérdések */
+      --east:    #8be28b;   /* ~530nm zöld – fordítás */
+      --south:   #ff9b9b;   /* ~680nm vörös – döntés */
+      --west:    #d7a7ff;   /* ~405nm ibolya – tanulás */
+      --ai:      #40e0c0;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: 'Inter', 'Segoe UI', Arial, sans-serif;
+      background: radial-gradient(ellipse at 20% 10%, #0d1525 0%, var(--bg) 60%);
+      color: var(--text);
+      min-height: 100vh;
+    }
+
+    /* ── Layout ── */
+    .layout {
+      display: grid;
+      grid-template-columns: 300px 1fr 280px;
+      grid-template-rows: auto 1fr auto;
+      min-height: 100vh;
+      gap: 0;
+    }
+
+    /* ── Header ── */
+    header {
+      grid-column: 1 / -1;
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      padding: 14px 20px;
+      border-bottom: 1px solid var(--line);
+      background: rgba(8,11,18,0.9);
+      backdrop-filter: blur(12px);
+      position: sticky; top: 0; z-index: 100;
+    }
+    .logo-ring {
+      width: 36px; height: 36px; border-radius: 50%;
+      border: 2px solid var(--accent);
+      display: grid; place-items: center;
+      font-size: 14px; font-weight: 800; color: var(--accent);
+      box-shadow: 0 0 12px rgba(216,177,90,0.4);
+    }
+    header h1 { font-size: 18px; font-weight: 700; letter-spacing: 0.02em; }
+    header h1 span { color: var(--accent); }
+    .status-pill {
+      margin-left: auto; display: flex; align-items: center; gap: 8px;
+      font-size: 12px; color: var(--muted);
+    }
+    .dot { width: 8px; height: 8px; border-radius: 50%; background: #444; }
+    .dot.ok { background: #4ade80; box-shadow: 0 0 6px #4ade80; }
+    .dot.err { background: #f87171; }
+
+    /* ── Left Panel (Controls) ── */
+    .left-panel {
+      padding: 16px;
+      border-right: 1px solid var(--line);
+      background: rgba(8,11,18,0.6);
+      overflow-y: auto;
+    }
+
+    /* ── Center (Translation) ── */
+    .center {
+      display: flex; flex-direction: column; padding: 16px; gap: 14px;
+      overflow-y: auto;
+    }
+
+    /* ── Right Panel (AGY + Sphere) ── */
+    .right-panel {
+      border-left: 1px solid var(--line);
+      background: rgba(8,11,18,0.6);
+      display: flex; flex-direction: column; padding: 16px; gap: 14px;
+      overflow-y: auto;
+    }
+
+    /* ── Footer ── */
+    footer {
+      grid-column: 1 / -1;
+      padding: 8px 20px;
+      border-top: 1px solid var(--line);
+      font-size: 11px; color: var(--muted);
+      display: flex; justify-content: space-between;
+    }
+
+    /* ── Cards ── */
+    .card {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      padding: 14px;
+      margin-bottom: 12px;
+    }
+    .card-title {
+      font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em;
+      color: var(--muted); margin-bottom: 10px;
+    }
+
+    /* ── Form elements ── */
+    select, input[type="text"], textarea {
+      background: rgba(255,255,255,0.04);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      color: var(--text);
+      padding: 8px 10px;
+      font-size: 13px;
+      width: 100%;
+      outline: none;
+      transition: border-color 0.2s;
+    }
+    select:focus, input[type="text"]:focus, textarea:focus {
+      border-color: var(--accent);
+    }
+    textarea { resize: vertical; font-family: inherit; line-height: 1.5; }
+
+    label { font-size: 12px; color: var(--muted); display: block; margin-bottom: 5px; }
+
+    .btn {
+      border: none; border-radius: 8px; cursor: pointer;
+      font-size: 13px; font-weight: 600; padding: 9px 16px;
+      transition: opacity 0.15s, transform 0.1s;
+    }
+    .btn:active { transform: scale(0.97); }
+    .btn:disabled { opacity: 0.4; cursor: not-allowed; }
+    .btn-primary {
+      background: linear-gradient(135deg, #d8b15a, #b8922a);
+      color: #1a0f00;
+    }
+    .btn-secondary {
+      background: rgba(255,255,255,0.07);
+      color: var(--text);
+      border: 1px solid var(--line);
+    }
+    .btn-ai {
+      background: linear-gradient(135deg, #40e0c0, #20a090);
+      color: #001a14;
+    }
+    .btn-row { display: flex; gap: 8px; flex-wrap: wrap; }
+
+    /* ── Lang pair ── */
+    .lang-pair {
+      display: grid; grid-template-columns: 1fr 32px 1fr; gap: 6px; align-items: end;
+    }
+    .swap-btn {
+      background: rgba(255,255,255,0.05); border: 1px solid var(--line);
+      color: var(--muted); border-radius: 6px; cursor: pointer;
+      font-size: 16px; padding: 7px 4px; text-align: center;
+      transition: color 0.15s;
+    }
+    .swap-btn:hover { color: var(--accent); }
+
+    /* ── Translation output ── */
+    .translation-out {
+      background: rgba(255,255,255,0.025);
+      border: 1px solid var(--line);
+      border-radius: 8px; padding: 10px 12px;
+      min-height: 80px; font-size: 14px; line-height: 1.6;
+      color: var(--text); white-space: pre-wrap; word-break: break-word;
+    }
+    .translation-out .cursor {
+      display: inline-block; width: 2px; height: 14px;
+      background: var(--accent); animation: blink 0.8s step-end infinite;
+      vertical-align: middle; margin-left: 1px;
+    }
+    @keyframes blink { 0%,100% { opacity:1 } 50% { opacity:0 } }
+
+    .stats-row {
+      display: flex; gap: 12px; font-size: 11px; color: var(--muted); flex-wrap: wrap;
+    }
+    .stat-chip {
+      background: rgba(255,255,255,0.04); border: 1px solid var(--line);
+      border-radius: 6px; padding: 3px 8px;
+    }
+
+    /* ── Direction badges ── */
+    .dir-grid {
+      display: grid; grid-template-columns: 1fr 1fr; gap: 8px;
+    }
+    .dir-badge {
+      border-radius: 10px; padding: 8px;
+      border: 1px solid transparent; position: relative; overflow: hidden;
+    }
+    .dir-badge.active { border-color: currentColor; }
+    .dir-badge b { font-size: 11px; display: block; margin-bottom: 3px; }
+    .dir-badge span { font-size: 20px; font-weight: 800; }
+    .dir-badge .bar {
+      position: absolute; bottom: 0; left: 0; height: 3px;
+      background: currentColor; transition: width 0.4s ease;
+    }
+    .dir-north { color: var(--north); background: rgba(120,196,255,0.08); }
+    .dir-east  { color: var(--east);  background: rgba(139,226,139,0.08); }
+    .dir-south { color: var(--south); background: rgba(255,155,155,0.08); }
+    .dir-west  { color: var(--west);  background: rgba(215,167,255,0.08); }
+
+    /* ── Mini Sphere ── */
+    .sphere-wrap {
+      width: 100%; aspect-ratio: 1;
+      max-width: 220px; margin: 0 auto;
+      position: relative; display: grid; place-items: center;
+    }
+    .sphere-svg { width: 100%; height: 100%; }
+
+    /* ── AGY output ── */
+    .agy-out {
+      font-size: 12px; line-height: 1.6; color: var(--ai);
+      background: rgba(64,224,192,0.06);
+      border: 1px solid rgba(64,224,192,0.2);
+      border-radius: 8px; padding: 10px 12px; min-height: 50px;
+      white-space: pre-wrap;
+    }
+
+    /* ── Wave layers ── */
+    .wave-layer {
+      height: 3px; border-radius: 2px; margin-bottom: 4px;
+      transition: width 0.5s ease, background 0.5s ease;
+    }
+
+    /* ── Vibration display ── */
+    .vib-bar {
+      height: 6px; border-radius: 3px; margin-top: 4px;
+      background: linear-gradient(90deg, #40e0c0, #d8b15a);
+      transition: width 0.2s ease;
+    }
+    .vib-needle {
+      stroke: rgba(64,224,192,0.8); stroke-width: 1.5; fill: none;
+      transition: d 0.15s ease;
+    }
+
+    /* ── Context history ── */
+    .history-item {
+      padding: 8px 10px; border-radius: 8px; margin-bottom: 6px;
+      background: rgba(255,255,255,0.03); border: 1px solid var(--line);
+      font-size: 12px;
+    }
+    .history-item .pair {
+      color: var(--muted); font-size: 10px; margin-bottom: 3px;
+    }
+
+    /* ── Self-struct badge ── */
+    .self-struct {
+      font-size: 11px; color: var(--west);
+      background: rgba(215,167,255,0.08);
+      border: 1px solid rgba(215,167,255,0.2);
+      border-radius: 8px; padding: 8px 10px;
+    }
+
+    /* ── Responsive ── */
+    @media (max-width: 900px) {
+      .layout { grid-template-columns: 1fr; grid-template-rows: auto; }
+      .left-panel, .right-panel { border: none; border-top: 1px solid var(--line); }
+    }
+  </style>
+</head>
+<body>
+<div class="layout">
+
+  <!-- ══ HEADER ══════════════════════════════════════════════════════════════ -->
+  <header>
+    <div class="logo-ring">0</div>
+    <div>
+      <h1>FreeTranslator <span>v2.1</span></h1>
+      <div style="font-size:11px;color:var(--muted)">0-Roulette AGY · Ollama helyi AI csatlakozó</div>
+    </div>
+    <div class="status-pill">
+      <div class="dot" id="healthDot"></div>
+      <span id="healthLabel">Csatlakozás…</span>
+      <span id="modelLabel" style="color:var(--accent);margin-left:4px"></span>
+    </div>
+  </header>
+
+  <!-- ══ LEFT PANEL ══════════════════════════════════════════════════════════ -->
+  <aside class="left-panel">
+
+    <div class="card">
+      <div class="card-title">Ollama modell</div>
+      <label>Aktív modell</label>
+      <select id="modelSelect">
+        <option value="">Betöltés…</option>
+      </select>
+      <div style="margin-top:8px;font-size:11px;color:var(--muted)" id="modelInfo">–</div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">Szabályzó AGY – motor</div>
+      <label>Motor típus</label>
+      <select id="engineType">
+        <option value="weyl">Weyl (arany arány)</option>
+        <option value="arnold">Arnold (körleképezés)</option>
+        <option value="chebyshev">Chebyshev (harmonikus)</option>
+      </select>
+      <div style="margin-top:10px">
+        <label>Mátrix energia: <b id="energyVal" style="color:var(--accent)">64</b></label>
+        <input type="range" id="matrixEnergy" min="0" max="100" value="64"
+          style="width:100%;accent-color:var(--accent);margin-top:4px"/>
+      </div>
+      <div style="margin-top:10px">
+        <label>Feszültség (tension): <b id="tensionVal" style="color:var(--accent)">0.5</b></label>
+        <input type="range" id="tension" min="0" max="100" value="50"
+          style="width:100%;accent-color:var(--accent);margin-top:4px"/>
+      </div>
+      <div style="margin-top:10px">
+        <label>Rezonancia: <b id="resonanceVal" style="color:var(--accent)">0.3</b></label>
+        <input type="range" id="resonance" min="0" max="100" value="30"
+          style="width:100%;accent-color:var(--accent);margin-top:4px"/>
+      </div>
+      <div style="margin-top:10px">
+        <label>Burok dinamika mód</label>
+        <select id="balloonMode" style="width:100%">
+          <option value="static">Statikus (rögzített átmérő)</option>
+          <option value="dynamic">Dinamikus (szinuszos oszcilláció)</option>
+          <option value="aberrated">Aberrált sávos (korlátlan tágulás)</option>
+        </select>
+      </div>
+      <div style="margin-top:10px" class="btn-row">
+        <button class="btn btn-secondary" id="stepBtn" style="flex:1">+1 lépés</button>
+        <button class="btn btn-secondary" id="autoBtn" style="flex:1">▶ Auto</button>
+      </div>
+      <div style="margin-top:8px;font-size:11px;color:var(--muted)">Lépés: <b id="stepDisplay" style="color:var(--text)">0</b></div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">Hullámhossz rétegek · Fény</div>
+      <div style="font-size:11px;color:var(--muted);margin-bottom:8px">
+        Irányok belső frekvencia-elosztása
+      </div>
+      <div style="margin-bottom:2px;font-size:10px;color:var(--north)">É ~450nm · Kék</div>
+      <div class="wave-layer" id="waveN" style="background:var(--north);width:50%"></div>
+      <div style="margin-bottom:2px;font-size:10px;color:var(--east)">K ~530nm · Zöld</div>
+      <div class="wave-layer" id="waveE" style="background:var(--east);width:50%"></div>
+      <div style="margin-bottom:2px;font-size:10px;color:var(--south)">D ~680nm · Vörös</div>
+      <div class="wave-layer" id="waveS" style="background:var(--south);width:50%"></div>
+      <div style="margin-bottom:2px;font-size:10px;color:var(--west)">Ny ~405nm · Ibolya</div>
+      <div class="wave-layer" id="waveW" style="background:var(--west);width:50%"></div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">Önstruktúra fejlesztés</div>
+      <div class="self-struct" id="selfStruct">
+        Az AGY tanulja a routing mintákat. Minél több fordítás történik, annál finomabb az irányítás.
+      </div>
+      <div style="margin-top:8px" class="btn-row">
+        <button class="btn btn-secondary" id="clearCtxBtn" style="flex:1;font-size:11px">Kontextus törlése</button>
+      </div>
+      <div style="margin-top:6px;font-size:11px;color:var(--muted)">
+        Kontextusban: <b id="ctxCount" style="color:var(--text)">0</b> fordítás
+      </div>
+    </div>
+
+  </aside>
+
+  <!-- ══ CENTER ══════════════════════════════════════════════════════════════ -->
+  <main class="center">
+
+    <div class="card">
+      <div class="card-title">Fordítás – FreeTranslator v2.1</div>
+
+      <div class="lang-pair" style="margin-bottom:10px">
+        <div>
+          <label>Forrás nyelv</label>
+          <select id="langFrom">
+            <option value="hu">Magyar (hu)</option>
+            <option value="en">Angol (en)</option>
+            <option value="de">Német (de)</option>
+            <option value="fr">Francia (fr)</option>
+            <option value="es">Spanyol (es)</option>
+            <option value="it">Olasz (it)</option>
+            <option value="ro">Román (ro)</option>
+            <option value="sk">Szlovák (sk)</option>
+            <option value="pl">Lengyel (pl)</option>
+            <option value="uk">Ukrán (uk)</option>
+            <option value="ru">Orosz (ru)</option>
+            <option value="zh">Kínai (zh)</option>
+            <option value="ja">Japán (ja)</option>
+            <option value="ar">Arab (ar)</option>
+          </select>
+        </div>
+        <button class="swap-btn" id="swapLangBtn" title="Csere">⇄</button>
+        <div>
+          <label>Cél nyelv</label>
+          <select id="langTo">
+            <option value="en" selected>Angol (en)</option>
+            <option value="hu">Magyar (hu)</option>
+            <option value="de">Német (de)</option>
+            <option value="fr">Francia (fr)</option>
+            <option value="es">Spanyol (es)</option>
+            <option value="it">Olasz (it)</option>
+            <option value="ro">Román (ro)</option>
+            <option value="sk">Szlovák (sk)</option>
+            <option value="pl">Lengyel (pl)</option>
+            <option value="uk">Ukrán (uk)</option>
+            <option value="ru">Orosz (ru)</option>
+            <option value="zh">Kínai (zh)</option>
+            <option value="ja">Japán (ja)</option>
+            <option value="ar">Arab (ar)</option>
+          </select>
+        </div>
+      </div>
+
+      <label>Bemeneti szöveg</label>
+      <textarea id="inputText" rows="4" placeholder="Írd ide a szöveget…"></textarea>
+
+      <div style="margin-top:10px" class="btn-row">
+        <button class="btn btn-primary" id="translateBtn" style="flex:2">Fordítás ▶</button>
+        <button class="btn btn-ai" id="routeBtn" style="flex:1">AGY routing</button>
+        <button class="btn btn-secondary" id="clearBtn">✕</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">Fordítás kimenet <span id="streamStatus" style="color:var(--accent)"></span></div>
+      <div class="translation-out" id="outputText">
+        <span style="color:var(--muted);font-size:13px">A fordítás itt jelenik meg…</span>
+      </div>
+      <div class="stats-row" id="statsRow" style="margin-top:8px"></div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">Irányrouting · AGY döntés</div>
+      <div class="dir-grid" id="dirGrid">
+        <div class="dir-badge dir-north" id="badgeN">
+          <b>0° · Észak · ~450nm</b><span id="pctN">–</span>%
+          <div class="bar" id="barN" style="width:0%"></div>
+        </div>
+        <div class="dir-badge dir-east" id="badgeE">
+          <b>90° · Kelet · ~530nm</b><span id="pctE">–</span>%
+          <div class="bar" id="barE" style="width:0%"></div>
+        </div>
+        <div class="dir-badge dir-south" id="badgeS">
+          <b>180° · Dél · ~680nm</b><span id="pctS">–</span>%
+          <div class="bar" id="barS" style="width:0%"></div>
+        </div>
+        <div class="dir-badge dir-west" id="badgeW">
+          <b>270° · Nyugat · ~405nm</b><span id="pctW">–</span>%
+          <div class="bar" id="barW" style="width:0%"></div>
+        </div>
+      </div>
+      <div style="margin-top:8px;font-size:12px;color:var(--muted)">
+        Domináns: <b id="dominantLabel" style="color:var(--accent)">–</b>
+        &nbsp;·&nbsp; AGY szög: <b id="reticleAngleDisplay" style="color:var(--text)">–</b>°
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">Fordítási előzmények · Kontextus sűrűség</div>
+      <div id="historyList">
+        <div style="color:var(--muted);font-size:12px">Még nincs előzmény.</div>
+      </div>
+    </div>
+
+  </main>
+
+  <!-- ══ RIGHT PANEL ══════════════════════════════════════════════════════════ -->
+  <aside class="right-panel">
+
+    <div class="card">
+      <div class="card-title">Szabályzó AGY · 0-gömb</div>
+      <div class="sphere-wrap">
+        <svg class="sphere-svg" id="sphereSvg" viewBox="-120 -120 240 240">
+          <defs>
+            <radialGradient id="sphereGrad" cx="38%" cy="32%" r="60%">
+              <stop offset="0%" stop-color="rgba(255,255,255,0.18)"/>
+              <stop offset="45%" stop-color="rgba(216,177,90,0.08)"/>
+              <stop offset="100%" stop-color="rgba(0,0,0,0.55)"/>
+            </radialGradient>
+            <filter id="glow">
+              <feGaussianBlur stdDeviation="3" result="blur"/>
+              <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+            </filter>
+          </defs>
+          <!-- Balloon (0-forma) – dinamikusan renderelt -->
+          <path id="balloonPath" fill="url(#sphereGrad)"
+            stroke="rgba(255,255,255,0.12)" stroke-width="0.8"/>
+          <!-- Zero ring -->
+          <circle r="55" fill="none" stroke="rgba(216,177,90,0.5)" stroke-width="3"
+            style="filter:drop-shadow(0 0 6px rgba(216,177,90,0.3))"/>
+          <!-- Cardinal endpoints -->
+          <g id="endpoints">
+            <circle cx="0" cy="-88" r="5" fill="#78c4ff" filter="url(#glow)"/>
+            <text x="0" y="-96" text-anchor="middle" fill="#78c4ff" font-size="8">É</text>
+            <circle cx="88" cy="0" r="5" fill="#8be28b" filter="url(#glow)"/>
+            <text x="96" y="4" text-anchor="start" fill="#8be28b" font-size="8">K</text>
+            <circle cx="0" cy="88" r="5" fill="#ff9b9b" filter="url(#glow)"/>
+            <text x="0" y="100" text-anchor="middle" fill="#ff9b9b" font-size="8">D</text>
+            <circle cx="-88" cy="0" r="5" fill="#d7a7ff" filter="url(#glow)"/>
+            <text x="-96" y="4" text-anchor="end" fill="#d7a7ff" font-size="8">Ny</text>
+          </g>
+          <!-- Reticle arm -->
+          <line id="reticleArm" x1="0" y1="0" x2="0" y2="-70"
+            stroke="rgba(216,177,90,0.9)" stroke-width="2"
+            style="transform-origin:center;transition:transform 0.4s ease"/>
+          <circle id="reticleTip" cx="0" cy="-70" r="4" fill="var(--accent)"
+            filter="url(#glow)"/>
+          <!-- Core -->
+          <circle r="18" fill="radial-gradient(circle,#fff4d2,#d8b15a)"
+            stroke="rgba(216,177,90,0.6)" stroke-width="1"/>
+          <text y="4" text-anchor="middle" fill="#221607" font-size="6" font-weight="800">AGY</text>
+        </svg>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">AGY értelmező · Ollama belső futtatás</div>
+      <div class="agy-out" id="agyOut">Az AGY értelmezője itt jelenik meg…</div>
+      <div style="margin-top:8px">
+        <button class="btn btn-ai" id="interpretBtn" style="width:100%">🧠 AGY értelmezés</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">Csatorna állapotok</div>
+      <div id="channelList" style="font-size:11px"></div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">Mutató rezgés · Hang v=343 m/s</div>
+      <div style="font-size:11px;color:var(--muted);line-height:1.8" id="vibDisplay">–</div>
+      <div style="margin-top:6px">
+        <div style="font-size:10px;color:var(--muted)">Amplitúdó</div>
+        <div class="vib-bar" id="vibBar" style="width:0%"></div>
+      </div>
+      <!-- Mini rezgés hullám -->
+      <svg viewBox="0 0 200 40" style="width:100%;margin-top:6px;opacity:0.7" id="vibWaveSvg">
+        <path id="vibWavePath" class="vib-needle" d="M0 20 L200 20"/>
+      </svg>
+    </div>
+
+    <div class="card">
+      <div class="card-title">Burok átmérő · dinamikus sáv</div>
+      <div style="font-size:11px;color:var(--muted);line-height:1.8" id="diaDisplay">–</div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">Belső mozgások · réteg-frekvencia</div>
+      <div id="innerMovements" style="font-size:11px;color:var(--muted);line-height:1.7">–</div>
+    </div>
+
+  </aside>
+
+  <!-- ══ FOOTER ══════════════════════════════════════════════════════════════ -->
+  <footer>
+    <span>FreeTranslator v2.1 · 0-Roulette logika · Ollama helyi AI</span>
+    <span id="footerStats">–</span>
+  </footer>
+
+</div>
+
+<script>
+/* ══════════════════════════════════════════════════════════════════════════════
+   MATH ENGINE (inline port)
+══════════════════════════════════════════════════════════════════════════════ */
+const GOLDEN_RATIO = (Math.sqrt(5) - 1) / 2;
+const PLASTIC_RATIO = 1.324717957244746;
+
+function normalizeAngle(a) { const m = a % 360; return m < 0 ? m + 360 : m; }
+
+function getReticleAngle(step, engineType, matrixEnergy) {
+  const e = matrixEnergy / 100;
+  if (engineType === 'weyl') return ((step * GOLDEN_RATIO) % 1) * 360;
+  if (engineType === 'arnold') {
+    const k = 0.5 + 2.0 * e; let t = 0.231;
+    for (let i = 0; i < step; i++) {
+      t = (t + GOLDEN_RATIO - (k / (2*Math.PI)) * Math.sin(2*Math.PI*t)) % 1;
+      if (t < 0) t += 1;
+    }
+    return t * 360;
+  }
+  if (engineType === 'chebyshev') {
+    return Math.abs(Math.cos(step / PLASTIC_RATIO * Math.PI + e * 2)) * 360;
+  }
+  return (step * 45) % 360;
+}
+
+function getBalloonR(theta, baseR, retAngleDeg, tension, resonance, step) {
+  const rRad = retAngleDeg * Math.PI / 180;
+  const hc = 4 + Math.round(resonance * 8);
+  const wa = 0.08 * (1 - tension);
+  const naturalShape = baseR * (1 + wa * Math.sin(hc * theta + step * 0.02) + Math.sin(step*0.05)*0.02);
+  const diff = Math.atan2(Math.sin(theta - rRad), Math.cos(theta - rRad));
+  const indent = 0.22 * (1-tension) * Math.exp(-(diff*diff)/(2*0.45*0.45));
+  const b1 = rRad+Math.PI, b2 = rRad+Math.PI/2, b3 = rRad-Math.PI/2;
+  const d1 = Math.atan2(Math.sin(theta-b1),Math.cos(theta-b1));
+  const d2 = Math.atan2(Math.sin(theta-b2),Math.cos(theta-b2));
+  const d3 = Math.atan2(Math.sin(theta-b3),Math.cos(theta-b3));
+  const bw = 0.6, id = 0.22*(1-tension);
+  const bulge = (id/2)*(0.5*Math.exp(-(d1*d1)/(2*bw*bw))+0.25*Math.exp(-(d2*d2)/(2*bw*bw))+0.25*Math.exp(-(d3*d3)/(2*bw*bw)));
+  return Math.max(0.08, naturalShape - indent + bulge);
+}
+
+function calcCardinal(retAngle, baseR, tension, resonance, step) {
+  const rRad = retAngle * Math.PI / 180;
+  const nR = getBalloonR(0, baseR, retAngle, tension, resonance, step);
+  const eR = getBalloonR(Math.PI/2, baseR, retAngle, tension, resonance, step);
+  const sR = getBalloonR(Math.PI, baseR, retAngle, tension, resonance, step);
+  const wR = getBalloonR(3*Math.PI/2, baseR, retAngle, tension, resonance, step);
+  const nW = Math.max(0, Math.cos(rRad));
+  const eW = Math.max(0, Math.cos(rRad - Math.PI/2));
+  const sW = Math.max(0, Math.cos(rRad - Math.PI));
+  const wW = Math.max(0, Math.cos(rRad - 3*Math.PI/2));
+  let rN=Math.max(1,nR*(1+nW*2)*10), rE=Math.max(1,eR*(1+eW*2)*10);
+  let rS=Math.max(1,sR*(1+sW*2)*10), rW=Math.max(1,wR*(1+wW*2)*10);
+  const tot = rN+rE+rS+rW;
+  const north=Math.round(rN/tot*100), east=Math.round(rE/tot*100), south=Math.round(rS/tot*100);
+  const west=Math.max(0,100-north-east-south);
+  const f={north,east,south,west};
+  let dom='north', mx=-1;
+  for(const [d,v] of Object.entries(f)) if(v>mx){mx=v;dom=d;}
+  return {north,east,south,west,dominant:dom};
+}
+
+/* ══════════════════════════════════════════════════════════════════════════════
+   DYNAMIC BALLOON RADIUS (aberrated band mode)
+══════════════════════════════════════════════════════════════════════════════ */
+function getDynamicBaseR(step, matrixEnergy, mode, theta = 0) {
+  const e = matrixEnergy / 100;
+  const t = step / 80;
+  if (mode === 'static')   return 0.48;
+  if (mode === 'dynamic')  return 0.32 + 0.20 * Math.abs(Math.sin(t * Math.PI + e * Math.PI));
+  if (mode === 'aberrated') {
+    const bp = Math.sin(4 * theta) * 0.5 + 0.5;
+    return 0.28
+      + 0.14 * Math.abs(Math.sin(t * Math.PI * GOLDEN_RATIO + theta))
+      + 0.10 * Math.abs(Math.sin(t * Math.PI * PLASTIC_RATIO + e * Math.PI))
+      + 0.06 * bp * Math.abs(Math.sin(t * 2 * Math.PI + 4 * theta));
+  }
+  return 0.48;
+}
+
+/* ══════════════════════════════════════════════════════════════════════════════
+   POINTER VIBRATION (hang sebessége alapján)
+══════════════════════════════════════════════════════════════════════════════ */
+const V_SOUND = 343; // m/s
+const ARM_LENGTH_M = 0.07; // 7cm virtuális kar
+
+function calcVibration(prevAngleDeg, currAngleDeg) {
+  let delta = Math.abs(currAngleDeg - prevAngleDeg);
+  if (delta > 180) delta = 360 - delta;
+  const deltaRad   = delta * Math.PI / 180;
+  const arcM       = ARM_LENGTH_M * deltaRad;
+  const ampNorm    = Math.min(1.0, delta / 180);
+  const freqHz     = arcM > 0.00005 ? V_SOUND / (2 * arcM) : 0;
+  const NOTE_NAMES = ['C','C#','D','D#','E','F','F#','G','G#','A','A#','B'];
+  let note = '–';
+  if (freqHz > 20 && freqHz < 20000) {
+    const midi = Math.round(69 + 12 * Math.log2(freqHz / 440));
+    note = NOTE_NAMES[((midi % 12) + 12) % 12] + Math.floor(midi / 12 - 1);
+  } else if (freqHz >= 20000) note = 'ultrahang';
+  else                         note = 'infrahang';
+  return { freqHz: Math.round(freqHz), ampNorm, arcM: +arcM.toFixed(5), wavelengthM: +(2*arcM).toFixed(5), note };
+}
+
+function renderVibration(vib, step) {
+  document.getElementById('vibDisplay').innerHTML =
+    `f = <b style="color:var(--ai)">${vib.freqHz > 0 ? vib.freqHz.toLocaleString() : '0'} Hz</b>
+    &nbsp;· λ = ${vib.wavelengthM} m &nbsp;· ív = ${(vib.arcM*100).toFixed(2)} cm<br>
+    Amplitúdó: <b style="color:var(--accent)">${(vib.ampNorm*100).toFixed(1)}%</b>
+    &nbsp;· Hang: <b style="color:var(--accent)">${vib.note}</b><br>
+    v<sub>hang</sub> = 343 m/s &nbsp;· kar = ${ARM_LENGTH_M*100}cm`;
+  document.getElementById('vibBar').style.width = (vib.ampNorm * 100) + '%';
+
+  // Mini rezgő hullám SVG
+  const path = document.getElementById('vibWavePath');
+  const pts = [];
+  const freq = Math.min(vib.freqHz, 2000);
+  const amp  = vib.ampNorm * 16;
+  for (let x = 0; x <= 200; x += 2) {
+    const y = 20 + amp * Math.sin((x / 200) * 2 * Math.PI * (1 + freq / 500) + step * 0.3);
+    pts.push(`${x === 0 ? 'M' : 'L'}${x},${y.toFixed(2)}`);
+  }
+  path.setAttribute('d', pts.join(' '));
+}
+
+/* ══════════════════════════════════════════════════════════════════════════════
+   BALLOON SVG RENDERER
+══════════════════════════════════════════════════════════════════════════════ */
+let balloonMode = 'static';
+
+function renderBalloon(retAngle, tension, resonance, step, matrixEnergy) {
+  const SCALE = 75;
+  const N     = 120;
+  const pts   = [];
+
+  let minR = Infinity, maxR = -Infinity;
+
+  for (let i = 0; i <= N; i++) {
+    const theta = (i / N) * 2 * Math.PI;
+    const baseR = getDynamicBaseR(step, matrixEnergy, balloonMode, theta);
+    const r     = getBalloonR(theta, baseR, retAngle, tension, resonance, step) * SCALE;
+    if (r < minR) minR = r;
+    if (r > maxR) maxR = r;
+    const x = r * Math.sin(theta);
+    const y = -r * Math.cos(theta);
+    pts.push(`${i === 0 ? 'M' : 'L'}${x.toFixed(2)},${y.toFixed(2)}`);
+  }
+  pts.push('Z');
+  document.getElementById('balloonPath').setAttribute('d', pts.join(' '));
+
+  // Burok átmérő kijelző
+  document.getElementById('diaDisplay').innerHTML =
+    `Min r: <b style="color:var(--accent)">${minR.toFixed(1)} px</b> ·
+     Max r: <b style="color:var(--accent)">${maxR.toFixed(1)} px</b><br>
+     Tágulás: <b style="color:var(--ai)">${(maxR - minR).toFixed(1)} px</b>
+     &nbsp;· Mód: <b style="color:var(--west)">${balloonMode}</b>`;
+
+  // Reticle arm + rezgő animáció
+  const vibShake = state.vibration ? state.vibration.ampNorm * 3 * Math.sin(step * 1.7) : 0;
+  document.getElementById('reticleArm').style.transform = `rotate(${retAngle + vibShake}deg)`;
+  document.getElementById('reticleTip').style.transform =
+    `rotate(${retAngle + vibShake}deg) translateY(-70px) rotate(-${retAngle + vibShake}deg)`;
+}
+
+/* ══════════════════════════════════════════════════════════════════════════════
+   STATE
+══════════════════════════════════════════════════════════════════════════════ */
+let state = {
+  step: 0, matrixEnergy: 64, tension: 0.5, resonance: 0.3,
+  engineType: 'weyl', reticleAngle: 0, prevAngle: 0,
+  distribution: { north: 25, east: 25, south: 25, west: 25 },
+  dominant: 'north', vibration: null
+};
+
+let availableModels = [];
+let selectedModel   = '';
+let context         = [];         // fordítási előzmények
+let autoInterval    = null;
+let trajectoryLog   = [];
+
+// Önstruktúra: routing súly adaptáció
+let routingWeightAdapt = { north: 1, east: 1, south: 1, west: 1 };
+
+/* ══════════════════════════════════════════════════════════════════════════════
+   API
+══════════════════════════════════════════════════════════════════════════════ */
+// Server mode: /api/* — ha közvetlen Ollama, use OLLAMA_DIRECT=true in URL
+const DIRECT = new URLSearchParams(location.search).get('direct') === '1';
+const BASE   = DIRECT ? '' : '';  // server is same origin
+
+async function apiFetch(path, options={}) {
+  const res = await fetch(path, options);
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  return res;
+}
+
+async function loadModels() {
+  try {
+    const res = await apiFetch('/api/models');
+    const data = await res.json();
+    availableModels = data.models || [];
+    const sel = document.getElementById('modelSelect');
+    sel.innerHTML = availableModels.map(m => {
+      const mb = m.size ? ` (${(m.size/1e9).toFixed(1)}GB)` : '';
+      return `<option value="${m.name}">${m.name}${mb}</option>`;
+    }).join('');
+    if (availableModels.length) {
+      selectedModel = availableModels[0].name;
+      sel.value = selectedModel;
+      updateModelInfo();
+    }
+  } catch(e) {
+    document.getElementById('modelSelect').innerHTML = '<option value="">Ollama nem elérhető</option>';
+  }
+}
+
+function updateModelInfo() {
+  const m = availableModels.find(x => x.name === selectedModel);
+  const info = document.getElementById('modelInfo');
+  if (!m) { info.textContent = '–'; return; }
+  const gb = m.size ? `${(m.size/1e9).toFixed(2)} GB` : '?';
+  const ctx = estimateCtxWindow(selectedModel);
+  info.innerHTML = `Méret: <b style="color:var(--accent)">${gb}</b> · Kontextus: <b style="color:var(--accent)">${ctx}</b> token`;
+  document.getElementById('modelLabel').textContent = selectedModel;
+}
+
+function estimateCtxWindow(name) {
+  const n = (name||'').toLowerCase();
+  if (/70b|72b|65b/.test(n)) return 8192;
+  if (/34b|32b|30b/.test(n)) return 8192;
+  if (/13b|14b|15b/.test(n)) return 6144;
+  if (/7b|8b/.test(n))       return 4096;
+  if (/3b|3\.8b/.test(n))    return 4096;
+  if (/1b|1\.5b/.test(n))    return 2048;
+  return 4096;
+}
+
+async function checkHealth() {
+  try {
+    const res = await apiFetch('/api/health');
+    const data = await res.json();
+    const dot = document.getElementById('healthDot');
+    const lbl = document.getElementById('healthLabel');
+    if (data.ok) {
+      dot.className = 'dot ok';
+      lbl.textContent = `Ollama · ${data.modelCount} modell`;
+    } else {
+      dot.className = 'dot err';
+      lbl.textContent = `Hiba: ${data.error}`;
+    }
+  } catch(e) {
+    document.getElementById('healthDot').className = 'dot err';
+    document.getElementById('healthLabel').textContent = 'Nem elérhető';
+  }
+}
+
+/* ══════════════════════════════════════════════════════════════════════════════
+   ENGINE STEP
+══════════════════════════════════════════════════════════════════════════════ */
+function engineStep() {
+  state.prevAngle = state.reticleAngle;
+  state.step++;
+
+  const retAngle = getReticleAngle(state.step, state.engineType, state.matrixEnergy);
+  state.reticleAngle = retAngle;
+
+  // Dinamikus burok alapsugar (aberrált módban szögfüggő)
+  const baseR = getDynamicBaseR(state.step, state.matrixEnergy, balloonMode, 0);
+  const dist  = calcCardinal(retAngle, Math.max(0.28, Math.min(0.68, baseR)), state.tension, state.resonance, state.step);
+  state.distribution = dist;
+  state.dominant = dist.dominant;
+
+  // Mutató rezgés számítása (hang sebessége)
+  const vib = calcVibration(state.prevAngle, retAngle);
+  state.vibration = vib;
+
+  trajectoryLog.push(dist.dominant[0].toUpperCase());
+  if (trajectoryLog.length > 10) trajectoryLog.shift();
+
+  renderUI(dist, retAngle);
+  renderBalloon(retAngle, state.tension, state.resonance, state.step, state.matrixEnergy);
+  renderVibration(vib, state.step);
+}
+
+function renderUI(dist, retAngle) {
+  document.getElementById('stepDisplay').textContent = state.step;
+  document.getElementById('reticleAngleDisplay').textContent = retAngle.toFixed(1);
+  document.getElementById('dominantLabel').textContent =
+    ({ north:'Észak (0°)', east:'Kelet (90°)', south:'Dél (180°)', west:'Nyugat (270°)' })[dist.dominant];
+
+  const vals = { N: dist.north, E: dist.east, S: dist.south, W: dist.west };
+  const dirs = ['N','E','S','W'];
+  const names = { N:'north', E:'east', S:'south', W:'west' };
+  dirs.forEach(d => {
+    const pct = vals[d];
+    document.getElementById(`pct${d}`).textContent = pct;
+    document.getElementById(`bar${d}`).style.width = pct + '%';
+    document.getElementById(`badge${d}`).classList.toggle('active', dist.dominant === names[d]);
+    document.getElementById(`wave${d}`).style.width = pct + '%';
+  });
+
+  // Inner movements
+  const freq = { north: '450nm', east: '530nm', south: '680nm', west: '405nm' };
+  document.getElementById('innerMovements').innerHTML = [
+    `É (${dist.north}%) → λ ${freq.north} · ${dist.north > 40 ? 'AKTÍV pálya' : 'készenléti'}`,
+    `K (${dist.east}%) → λ ${freq.east} · ${dist.east > 40 ? 'AKTÍV pálya' : 'készenléti'}`,
+    `D (${dist.south}%) → λ ${freq.south} · ${dist.south > 40 ? 'AKTÍV pálya' : 'készenléti'}`,
+    `Ny (${dist.west}%) → λ ${freq.west} · ${dist.west > 40 ? 'AKTÍV pálya' : 'készenléti'}`
+  ].map(l => `<div>${l}</div>`).join('');
+
+  // Channel list (simple 4-ch)
+  const chLabels = ['Észak (CH-1)', 'Kelet (CH-2)', 'Dél (CH-3)', 'Nyugat (CH-4)'];
+  const chVals   = [dist.north, dist.east, dist.south, dist.west];
+  const chColors = ['var(--north)','var(--east)','var(--south)','var(--west)'];
+  document.getElementById('channelList').innerHTML = chVals.map((v,i) => {
+    const state = v > 40 ? 'AKTÍV' : v < 14 ? 'BLOKKOLT' : 'KÉSZEN';
+    return `<div style="margin-bottom:5px;color:${chColors[i]}">
+      ${chLabels[i]}: ${v}% · <span style="opacity:0.7">${state}</span>
+    </div>`;
+  }).join('');
+
+  document.getElementById('footerStats').textContent =
+    `Lépés: ${state.step} · Szög: ${retAngle.toFixed(1)}° · Dom: ${dist.dominant}`;
+}
+
+/* ══════════════════════════════════════════════════════════════════════════════
+   TRANSLATION (SSE streaming)
+══════════════════════════════════════════════════════════════════════════════ */
+let translateAbort = null;
+
+async function doTranslate() {
+  const text = document.getElementById('inputText').value.trim();
+  if (!text) return;
+  if (translateAbort) translateAbort.abort();
+
+  const translateBtn = document.getElementById('translateBtn');
+  translateBtn.disabled = true;
+  translateBtn.textContent = 'Fordítás…';
+  document.getElementById('streamStatus').textContent = '⏳';
+
+  const out = document.getElementById('outputText');
+  out.innerHTML = '<span class="cursor"></span>';
+
+  translateAbort = new AbortController();
+  const from = document.getElementById('langFrom').value;
+  const to   = document.getElementById('langTo').value;
+
+  let fullText = '';
+  let startTime = Date.now();
+
+  try {
+    const res = await fetch('/api/translate', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ text, from, to, model: selectedModel, context }),
+      signal: translateAbort.signal
+    });
+
+    const reader = res.body.getReader();
+    const dec = new TextDecoder();
+    let buf = '';
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buf += dec.decode(value, { stream: true });
+      const lines = buf.split('\n');
+      buf = lines.pop() || '';
+      for (const line of lines) {
+        if (!line.startsWith('data: ')) continue;
+        try {
+          const ev = JSON.parse(line.slice(6));
+          if (ev.token) {
+            fullText += ev.token;
+            out.innerHTML = fullText.replace(/</g,'&lt;') + '<span class="cursor"></span>';
+          }
+          if (ev.error) { out.innerHTML = `<span style="color:var(--south)">${ev.error}</span>`; break; }
+          if (ev.done) {
+            fullText = ev.fullText || fullText.trim();
+            out.textContent = fullText;
+            document.getElementById('streamStatus').textContent = '✓';
+            const elapsed = ((Date.now()-startTime)/1000).toFixed(1);
+            const tps = ev.stats?.tokens ? (ev.stats.tokens/(ev.stats.ms/1e9)).toFixed(0) : '?';
+            document.getElementById('statsRow').innerHTML =
+              `<span class="stat-chip">⏱ ${elapsed}s</span>
+               <span class="stat-chip">🔢 ${ev.stats?.tokens||'?'} token</span>
+               <span class="stat-chip">⚡ ${tps} t/s</span>
+               <span class="stat-chip">🤖 ${ev.model||selectedModel}</span>`;
+
+            addToContext(text, fullText, from, to);
+            updateSelfStruct();
+
+            // AGY: fordítás = Kelet irány
+            applyRouteHint(90, 60);
+            break;
+          }
+        } catch {}
+      }
+    }
+  } catch (e) {
+    if (e.name !== 'AbortError')
+      out.innerHTML = `<span style="color:var(--south)">Hiba: ${e.message}</span>`;
+  } finally {
+    translateBtn.disabled = false;
+    translateBtn.textContent = 'Fordítás ▶';
+  }
+}
+
+/* ══════════════════════════════════════════════════════════════════════════════
+   AGY ROUTING (AI semantic)
+══════════════════════════════════════════════════════════════════════════════ */
+async function doRoute() {
+  const text = document.getElementById('inputText').value.trim();
+  if (!text) return;
+  try {
+    const res = await fetch('/api/route', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ text, model: selectedModel })
+    });
+    const data = await res.json();
+    const w = data.weights || {};
+    const total = Object.values(w).reduce((s,v)=>s+v,0) || 1;
+    document.getElementById('pctN').textContent = Math.round(w[0]/total*100);
+    document.getElementById('pctE').textContent = Math.round(w[90]/total*100);
+    document.getElementById('pctS').textContent = Math.round(w[180]/total*100);
+    document.getElementById('pctW').textContent = Math.round(w[270]/total*100);
+    ['N','E','S','W'].forEach((d,i) => {
+      const k=[0,90,180,270][i];
+      document.getElementById(`bar${d}`).style.width = Math.round(w[k]/total*100) + '%';
+    });
+    let dom = 0;
+    for (const k of [0,90,180,270]) if ((w[k]||0) > (w[dom]||0)) dom = k;
+    const names = {0:'north',90:'east',180:'south',270:'west'};
+    document.getElementById('dominantLabel').textContent =
+      ({north:'Észak (0°)',east:'Kelet (90°)',south:'Dél (180°)',west:'Nyugat (270°)'})[names[dom]];
+    ['N','E','S','W'].forEach((d,i)=>{
+      document.getElementById(`badge${d}`).classList.toggle('active', names[[0,90,180,270][i]]===names[dom]);
+    });
+  } catch(e) {
+    console.error('Route error', e);
+  }
+}
+
+/* ══════════════════════════════════════════════════════════════════════════════
+   AGY ÉRTELMEZŐ (SSE streaming, Ollama belső futtatás)
+══════════════════════════════════════════════════════════════════════════════ */
+async function doInterpret() {
+  const btn = document.getElementById('interpretBtn');
+  btn.disabled = true; btn.textContent = '🧠 Értelmezés…';
+  const agyOut = document.getElementById('agyOut');
+  agyOut.textContent = '';
+
+  const dist = state.distribution;
+
+  try {
+    const res = await fetch('/api/interpret', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        engineType: state.engineType,
+        step: state.step,
+        matrixEnergy: state.matrixEnergy,
+        reticleAngle: state.reticleAngle,
+        dominantDirection: state.dominant,
+        distribution: dist,
+        trajectoryLog: trajectoryLog.join(''),
+        model: selectedModel
+      })
+    });
+
+    const reader = res.body.getReader();
+    const dec = new TextDecoder();
+    let buf = '';
+    let txt = '';
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buf += dec.decode(value, { stream: true });
+      const lines = buf.split('\n');
+      buf = lines.pop() || '';
+      for (const line of lines) {
+        if (!line.startsWith('data: ')) continue;
+        try {
+          const ev = JSON.parse(line.slice(6));
+          if (ev.token) { txt += ev.token; agyOut.textContent = txt; }
+          if (ev.error) { agyOut.textContent = `Hiba: ${ev.error}`; }
+          if (ev.done)  { break; }
+        } catch {}
+      }
+    }
+  } catch(e) {
+    agyOut.textContent = `Hiba: ${e.message}`;
+  } finally {
+    btn.disabled = false; btn.textContent = '🧠 AGY értelmezés';
+  }
+}
+
+/* ══════════════════════════════════════════════════════════════════════════════
+   CONTEXT & SELF-STRUCT
+══════════════════════════════════════════════════════════════════════════════ */
+function addToContext(input, output, from, to) {
+  context.push({ input, output, from, to, ts: Date.now() });
+  if (context.length > 20) context.shift();
+  renderHistory();
+  document.getElementById('ctxCount').textContent = context.length;
+}
+
+function renderHistory() {
+  const list = document.getElementById('historyList');
+  if (!context.length) {
+    list.innerHTML = '<div style="color:var(--muted);font-size:12px">Még nincs előzmény.</div>';
+    return;
+  }
+  list.innerHTML = [...context].reverse().slice(0,5).map(c => `
+    <div class="history-item">
+      <div class="pair">${c.from} → ${c.to} · ${new Date(c.ts).toLocaleTimeString('hu')}</div>
+      <div style="color:var(--muted)">${c.input.slice(0,50)}${c.input.length>50?'…':''}</div>
+      <div style="color:var(--text)">${c.output.slice(0,80)}${c.output.length>80?'…':''}</div>
+    </div>
+  `).join('');
+}
+
+function applyRouteHint(angle, weight) {
+  // Önstruktúra: a fordítási irány súlyát enyhén növeli
+  const key = { 0:'north', 90:'east', 180:'south', 270:'west' }[angle];
+  if (key) {
+    routingWeightAdapt[key] = Math.min(2.0, routingWeightAdapt[key] + 0.05);
+    updateSelfStruct();
+  }
+}
+
+function updateSelfStruct() {
+  const w = routingWeightAdapt;
+  document.getElementById('selfStruct').innerHTML =
+    `Tanult routing súlyok:<br>
+    É: <b style="color:var(--north)">${w.north.toFixed(2)}</b> ·
+    K: <b style="color:var(--east)">${w.east.toFixed(2)}</b> ·
+    D: <b style="color:var(--south)">${w.south.toFixed(2)}</b> ·
+    Ny: <b style="color:var(--west)">${w.west.toFixed(2)}</b><br>
+    <span style="color:var(--muted)">Kontextus: ${context.length} fordítás · Struktúra fejlődik</span>`;
+}
+
+/* ══════════════════════════════════════════════════════════════════════════════
+   EVENT WIRING
+══════════════════════════════════════════════════════════════════════════════ */
+document.getElementById('modelSelect').addEventListener('change', e => {
+  selectedModel = e.target.value;
+  updateModelInfo();
+});
+
+document.getElementById('engineType').addEventListener('change', e => {
+  state.engineType = e.target.value;
+  state.step = 0; state.prevAngle = 0; trajectoryLog = [];
+  engineStep();
+});
+
+document.getElementById('balloonMode').addEventListener('change', e => {
+  balloonMode = e.target.value;
+  renderBalloon(state.reticleAngle, state.tension, state.resonance, state.step, state.matrixEnergy);
+});
+
+document.getElementById('matrixEnergy').addEventListener('input', e => {
+  state.matrixEnergy = +e.target.value;
+  document.getElementById('energyVal').textContent = state.matrixEnergy;
+  engineStep();
+});
+
+document.getElementById('tension').addEventListener('input', e => {
+  state.tension = +e.target.value / 100;
+  document.getElementById('tensionVal').textContent = state.tension.toFixed(2);
+  renderBalloon(state.reticleAngle, state.tension, state.resonance, state.step);
+});
+
+document.getElementById('resonance').addEventListener('input', e => {
+  state.resonance = +e.target.value / 100;
+  document.getElementById('resonanceVal').textContent = state.resonance.toFixed(2);
+  renderBalloon(state.reticleAngle, state.tension, state.resonance, state.step);
+});
+
+document.getElementById('stepBtn').addEventListener('click', engineStep);
+
+document.getElementById('autoBtn').addEventListener('click', () => {
+  if (autoInterval) {
+    clearInterval(autoInterval); autoInterval = null;
+    document.getElementById('autoBtn').textContent = '▶ Auto';
+  } else {
+    autoInterval = setInterval(engineStep, 600);
+    document.getElementById('autoBtn').textContent = '⏹ Stop';
+  }
+});
+
+document.getElementById('translateBtn').addEventListener('click', doTranslate);
+document.getElementById('routeBtn').addEventListener('click', doRoute);
+document.getElementById('interpretBtn').addEventListener('click', doInterpret);
+
+document.getElementById('swapLangBtn').addEventListener('click', () => {
+  const f = document.getElementById('langFrom');
+  const t = document.getElementById('langTo');
+  const tmp = f.value; f.value = t.value; t.value = tmp;
+});
+
+document.getElementById('clearBtn').addEventListener('click', () => {
+  document.getElementById('inputText').value = '';
+  document.getElementById('outputText').innerHTML = '<span style="color:var(--muted);font-size:13px">A fordítás itt jelenik meg…</span>';
+  document.getElementById('statsRow').innerHTML = '';
+  document.getElementById('streamStatus').textContent = '';
+});
+
+document.getElementById('clearCtxBtn').addEventListener('click', () => {
+  context = [];
+  routingWeightAdapt = { north: 1, east: 1, south: 1, west: 1 };
+  renderHistory();
+  document.getElementById('ctxCount').textContent = 0;
+  updateSelfStruct();
+});
+
+// Ctrl+Enter = Fordítás
+document.getElementById('inputText').addEventListener('keydown', e => {
+  if (e.ctrlKey && e.key === 'Enter') doTranslate();
+});
+
+/* ══════════════════════════════════════════════════════════════════════════════
+   INIT
+══════════════════════════════════════════════════════════════════════════════ */
+async function init() {
+  await checkHealth();
+  await loadModels();
+  engineStep();
+  renderBalloon(state.reticleAngle, state.tension, state.resonance, state.step, state.matrixEnergy);
+  renderVibration({ freqHz: 0, ampNorm: 0, arcM: 0, wavelengthM: 0, note: '–' }, 0);
+  updateSelfStruct();
+}
+
+init();
+</script>
+</body>
+</html>
