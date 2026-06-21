@@ -16,18 +16,23 @@ const express = require('express');
 const path    = require('path');
 const { listModels, detectLargestModel, streamGenerate, generate, checkHealth, estimateContextWindow }
   = require('./ollama-client.js');
+const { compute: decisionCompute, getAllWeights } = require('../src/decision-matrix.js');
 
 const app  = express();
 const PORT = process.env.PORT || 3000;
+
+// ── Leválasztható mód: ha OFFLINE=1, Ollama nélkül is fut (csak döntési mátrix) ──
+const OFFLINE_MODE = process.env.OFFLINE === '1';
+if (OFFLINE_MODE) console.log('[OFFLINE MÓD] Ollama API ki van kapcsolva.');
 
 app.use(express.json());
 app.use(express.static(path.join(__dirname, '..')));
 
 // ── GET /api/health ──────────────────────────────────────────────────────────
 app.get('/api/health', async (_req, res) => {
+  if (OFFLINE_MODE) return res.json({ ok: false, offline: true, error: 'Offline mód aktív', modelCount: 0 });
   const status = await checkHealth();
   if (!status.ok) return res.status(503).json(status);
-
   let largest = null;
   try { largest = await detectLargestModel(); } catch { /* no models */ }
   res.json({ ...status, largest });
@@ -43,19 +48,28 @@ app.get('/api/models', async (_req, res) => {
   }
 });
 
+// ── GET /api/models ──────────────────────────────────────────────────────────
+// (felülírja a korábbi /api/models blokkot offline-biztos módon)
+
 // ── POST /api/interpret (SSE) ─────────────────────────────────────────────────
 // Szabályzó AGY értelmezője – Gemini helyett Ollama
 app.post('/api/interpret', async (req, res) => {
+  res.setHeader('Content-Type', 'text/event-stream; charset=utf-8');
+  res.setHeader('Cache-Control', 'no-cache');
+  res.setHeader('Connection', 'keep-alive');
+  res.flushHeaders();
+
+  if (OFFLINE_MODE) {
+    res.write(`data: ${JSON.stringify({ token: '[Offline mód] Ollama leválasztva. Csak a döntési mátrix érhető el.' })}\n\n`);
+    res.write(`data: ${JSON.stringify({ done: true })}\n\n`);
+    return res.end();
+  }
+
   const {
     engineType, step, matrixEnergy, reticleAngle,
     dominantDirection, distribution, trajectoryLog,
     model: reqModel
   } = req.body;
-
-  res.setHeader('Content-Type', 'text/event-stream; charset=utf-8');
-  res.setHeader('Cache-Control', 'no-cache');
-  res.setHeader('Connection', 'keep-alive');
-  res.flushHeaders();
 
   const send = (obj) => res.write(`data: ${JSON.stringify(obj)}\n\n`);
 
@@ -196,6 +210,23 @@ Weights:`;
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
+});
+
+// ── POST /api/decide ─────────────────────────────────────────────────────────
+// Kettős réteg döntési mátrix: belső (fusion) + külső (decay) + összehasonlítás
+app.post('/api/decide', (req, res) => {
+  try {
+    const values = req.body || {};
+    const result = decisionCompute(values);
+    res.json(result);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ── GET /api/weights ──────────────────────────────────────────────────────────
+app.get('/api/weights', (_req, res) => {
+  res.json(getAllWeights());
 });
 
 // ── Start ────────────────────────────────────────────────────────────────────

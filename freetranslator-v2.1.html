@@ -548,10 +548,79 @@
 
   </aside>
 
+  <!-- ══ DECISION MATRIX (full-width row) ═══════════════════════════════════ -->
+  <section style="grid-column:1/-1;padding:16px;border-top:1px solid var(--line);background:rgba(8,11,18,0.7)">
+    <div style="display:flex;align-items:center;gap:12px;margin-bottom:12px">
+      <span style="font-size:12px;text-transform:uppercase;letter-spacing:0.08em;color:var(--muted)">
+        Kettős réteg döntési mátrix · Atom bomlás &amp; egyesülés
+      </span>
+      <button class="btn btn-ai" id="decideBtn" style="margin-left:auto;padding:6px 14px;font-size:12px">
+        &#9883; Mátrix számítás
+      </button>
+      <span id="decideStatus" style="font-size:11px;color:var(--muted)"></span>
+    </div>
+
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px">
+
+      <!-- Belső réteg (fusion) -->
+      <div class="card" style="margin:0">
+        <div class="card-title" style="color:var(--accent)">Belső réteg · Fúzió (mag)</div>
+        <div id="innerResult" style="font-size:12px;color:var(--muted)">Még nem számolt.</div>
+        <div style="margin-top:10px;font-size:11px;color:var(--muted)">Top változók (súlyPontszám)</div>
+        <div id="innerContribs" style="font-size:11px;margin-top:6px"></div>
+      </div>
+
+      <!-- Összehasonlítás / Rezonancia -->
+      <div class="card" style="margin:0;display:flex;flex-direction:column;align-items:center;justify-content:center">
+        <div class="card-title" style="color:var(--ai)">Összehasonlítás · Rezonancia</div>
+        <div id="resonanceDisplay" style="font-size:36px;font-weight:800;color:var(--ai)">-</div>
+        <div id="resonanceLabel" style="font-size:12px;color:var(--muted);margin-top:4px;text-align:center">-</div>
+        <div style="margin-top:12px;width:100%">
+          <div style="font-size:10px;color:var(--muted);margin-bottom:3px">Rezonancia szint</div>
+          <div style="height:8px;border-radius:4px;background:var(--line)">
+            <div id="resonanceBar" style="height:100%;border-radius:4px;background:linear-gradient(90deg,var(--south),var(--ai));width:0%;transition:width 0.5s ease"></div>
+          </div>
+        </div>
+        <div id="verdictBox" style="margin-top:10px;font-size:11px;padding:8px;border-radius:8px;width:100%;text-align:center"></div>
+      </div>
+
+      <!-- Külső réteg (decay) -->
+      <div class="card" style="margin:0">
+        <div class="card-title" style="color:var(--west)">Külső réteg · Bomlás (héj)</div>
+        <div id="outerResult" style="font-size:12px;color:var(--muted)">Még nem számolt.</div>
+        <div style="margin-top:8px" id="outerBars"></div>
+      </div>
+
+    </div>
+
+    <!-- Teljes változó tábla -->
+    <div style="margin-top:12px">
+      <div style="font-size:11px;color:var(--muted);margin-bottom:6px;text-transform:uppercase;letter-spacing:0.06em">
+        Összes változó · súlyPontszám tábla (legbelső és legszelső réteg)
+      </div>
+      <div style="overflow-x:auto">
+        <table id="variableTable" style="width:100%;border-collapse:collapse;font-size:11px">
+          <thead>
+            <tr style="color:var(--muted);text-align:left">
+              <th style="padding:4px 8px;border-bottom:1px solid var(--line)">Változó</th>
+              <th style="padding:4px 8px;border-bottom:1px solid var(--line)">Réteg</th>
+              <th style="padding:4px 8px;border-bottom:1px solid var(--line)">Érték</th>
+              <th style="padding:4px 8px;border-bottom:1px solid var(--line)">Normalizált</th>
+              <th style="padding:4px 8px;border-bottom:1px solid var(--line)">Súly</th>
+              <th style="padding:4px 8px;border-bottom:1px solid var(--line)">súlyPontszám</th>
+              <th style="padding:4px 8px;border-bottom:1px solid var(--line)">Sáv</th>
+            </tr>
+          </thead>
+          <tbody id="variableTableBody"></tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
   <!-- ══ FOOTER ══════════════════════════════════════════════════════════════ -->
   <footer>
-    <span>FreeTranslator v2.1 · 0-Roulette logika · Ollama helyi AI</span>
-    <span id="footerStats">–</span>
+    <span>FreeTranslator v2.1 · 0-Roulette · Ollama AI · Kettős réteg döntési mátrix</span>
+    <span id="footerStats">-</span>
   </footer>
 
 </div>
@@ -1180,6 +1249,135 @@ document.getElementById('inputText').addEventListener('keydown', e => {
 });
 
 /* ══════════════════════════════════════════════════════════════════════════════
+   DECISION MATRIX
+══════════════════════════════════════════════════════════════════════════════ */
+function buildDecidePayload() {
+  const d   = state.distribution;
+  const vib = state.vibration || {};
+  return {
+    reticleAngle:  state.reticleAngle,
+    north:         d.north || 25,
+    east:          d.east  || 25,
+    south:         d.south || 25,
+    west:          d.west  || 25,
+    matrixEnergy:  state.matrixEnergy,
+    tension:       state.tension,
+    resonance:     state.resonance,
+    vibFreqHz:     vib.freqHz  || 0,
+    vibAmp:        vib.ampNorm || 0,
+    balloonRadius: getDynamicBaseR(state.step, state.matrixEnergy, balloonMode, 0),
+    contextSize:   context.length,
+    adaptNorth:    routingWeightAdapt.north,
+    adaptEast:     routingWeightAdapt.east,
+    adaptSouth:    routingWeightAdapt.south,
+    adaptWest:     routingWeightAdapt.west,
+    step:          state.step
+  };
+}
+
+const DIR_COLORS = { north:'var(--north)', east:'var(--east)', south:'var(--south)', west:'var(--west)' };
+const DIR_HU     = { north:'Eszak', east:'Kelet', south:'Del', west:'Nyugat' };
+const LAYER_CLR  = { inner:'var(--accent)', outer:'var(--west)', both:'var(--ai)' };
+
+function renderDecisionResult(result) {
+  const inn = result.inner;
+  document.getElementById('innerResult').innerHTML =
+    `Szog kimenet: <b style="color:var(--accent)">${inn.angleOut}deg</b><br>
+     Dominant: <b style="color:${DIR_COLORS[inn.dominant]}">${DIR_HU[inn.dominant]}</b><br>
+     SulyPontszam: <b style="color:var(--accent)">${(inn.score*100).toFixed(2)}%</b><br>
+     Konfidencia: <b style="color:var(--ai)">${(inn.confidence*100).toFixed(1)}%</b>`;
+
+  const topC = (inn.contributions || []).slice(0, 6);
+  document.getElementById('innerContribs').innerHTML = topC.map(c =>
+    `<div style="display:flex;justify-content:space-between;padding:2px 0;border-bottom:1px solid var(--line)">
+      <span style="color:var(--text)">${c.label}</span>
+      <span style="color:var(--accent)">${(c.contrib*1000).toFixed(2)}‰</span>
+    </div>`
+  ).join('');
+
+  const out = result.outer;
+  document.getElementById('outerResult').innerHTML =
+    `Dominant endpoint: <b style="color:${DIR_COLORS[out.dominant]}">${DIR_HU[out.dominant]}</b><br>
+     Endpoint score: <b style="color:var(--west)">${(out.dominantScore*100).toFixed(1)}%</b>`;
+
+  document.getElementById('outerBars').innerHTML =
+    ['north','east','south','west'].map(d =>
+      `<div style="margin-bottom:5px">
+        <div style="display:flex;justify-content:space-between;font-size:10px;color:${DIR_COLORS[d]}">
+          <span>${DIR_HU[d]}</span><span>${out.distribution[d]}%</span>
+        </div>
+        <div style="height:5px;border-radius:3px;background:var(--line);margin-top:2px">
+          <div style="height:100%;border-radius:3px;background:${DIR_COLORS[d]};width:${out.distribution[d]}%;transition:width 0.5s ease"></div>
+        </div>
+      </div>`
+    ).join('');
+
+  const cmp = result.comparison;
+  const pct = Math.round(cmp.resonance * 100);
+  document.getElementById('resonanceDisplay').textContent = pct + '%';
+  document.getElementById('resonanceLabel').textContent =
+    `Belso: ${DIR_HU[cmp.innerDominant]} | Kulso: ${DIR_HU[cmp.outerDominant]}`;
+  document.getElementById('resonanceBar').style.width = pct + '%';
+  document.getElementById('resonanceBar').style.background =
+    cmp.anomaly ? 'linear-gradient(90deg,var(--south),#f44)' : 'linear-gradient(90deg,var(--east),var(--ai))';
+
+  const vb = document.getElementById('verdictBox');
+  vb.textContent = cmp.verdict;
+  vb.style.cssText = `margin-top:10px;font-size:11px;padding:8px;border-radius:8px;width:100%;text-align:center;
+    background:${cmp.anomaly?'rgba(255,155,155,0.12)':'rgba(64,224,192,0.10)'};
+    border:1px solid ${cmp.anomaly?'var(--south)':'var(--ai)'};
+    color:${cmp.anomaly?'var(--south)':'var(--ai)'}`;
+
+  // Változo tabla
+  const sorted = [...result.variables].sort((a,b) => b.weightScore - a.weightScore);
+  document.getElementById('variableTableBody').innerHTML = sorted.map((v,i) => {
+    const lc = LAYER_CLR[v.layer] || 'var(--muted)';
+    const barW = Math.min(100, v.weightScore * 5000);
+    return `<tr style="border-bottom:1px solid var(--line);${i===0?'background:rgba(216,177,90,0.05)':''}">
+      <td style="padding:4px 8px;color:var(--text)">${v.label}</td>
+      <td style="padding:4px 8px"><span style="color:${lc};font-size:10px">${v.layer}</span></td>
+      <td style="padding:4px 8px;color:var(--accent);font-family:monospace">${
+        typeof v.raw==='number'?(v.raw%1===0?v.raw:v.raw.toFixed(3)):v.raw}</td>
+      <td style="padding:4px 8px;color:var(--muted);font-family:monospace">${v.normalized.toFixed(4)}</td>
+      <td style="padding:4px 8px;color:var(--muted);font-family:monospace">${v.weight.toFixed(4)}</td>
+      <td style="padding:4px 8px">
+        <div style="display:flex;align-items:center;gap:6px">
+          <div style="width:60px;height:5px;border-radius:3px;background:var(--line)">
+            <div style="height:100%;border-radius:3px;background:${lc};width:${barW}%"></div>
+          </div>
+          <span style="color:${lc};font-family:monospace">${(v.weightScore*1000).toFixed(2)}‰</span>
+        </div>
+      </td>
+      <td style="padding:4px 8px">
+        <div style="width:80px;height:4px;border-radius:2px;background:${lc};opacity:${0.3+v.normalized*0.7}"></div>
+      </td>
+    </tr>`;
+  }).join('');
+
+  document.getElementById('decideStatus').textContent =
+    `${result.variables.length} valtozo | ${new Date(result.timestamp).toLocaleTimeString('hu')}`;
+}
+
+async function doDecide() {
+  const btn = document.getElementById('decideBtn');
+  btn.disabled = true; btn.textContent = 'Szamol...';
+  try {
+    const res = await fetch('/api/decide', {
+      method: 'POST',
+      headers: { 'Content-Type':'application/json' },
+      body: JSON.stringify(buildDecidePayload())
+    });
+    renderDecisionResult(await res.json());
+  } catch(e) {
+    document.getElementById('decideStatus').textContent = 'Hiba: ' + e.message;
+  } finally {
+    btn.disabled = false; btn.innerHTML = '&#9883; Matix szamitas';
+  }
+}
+
+document.getElementById('decideBtn').addEventListener('click', doDecide);
+
+/* ══════════════════════════════════════════════════════════════════════════════
    INIT
 ══════════════════════════════════════════════════════════════════════════════ */
 async function init() {
@@ -1187,7 +1385,7 @@ async function init() {
   await loadModels();
   engineStep();
   renderBalloon(state.reticleAngle, state.tension, state.resonance, state.step, state.matrixEnergy);
-  renderVibration({ freqHz: 0, ampNorm: 0, arcM: 0, wavelengthM: 0, note: '–' }, 0);
+  renderVibration({ freqHz:0, ampNorm:0, arcM:0, wavelengthM:0, note:'-' }, 0);
   updateSelfStruct();
 }
 
