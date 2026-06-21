@@ -1,0 +1,40 @@
+name = "egnerrent"
+pages_build_output_dir = "./dist"
+compatibility_date = "2024-09-23"
+compatibility_flags = ["nodejs_compat"]
+
+# -- D1 adatbazis
+[[d1_databases]]
+binding       = "DB"
+database_name = "egnerrent-db"
+database_id   = "1a957f97-eee5-479a-af2a-517ddde8df0c"
+
+# -- KV Namespace (rate limiting / spam-bot védelem) - BEKAPCSOLVA
+[[kv_namespaces]]
+binding = "RATE_LIMIT_KV"
+id      = "c386efe437d941fba33a61a36253da98"
+
+# -- Nem-titkos valtozok
+[vars]
+NODE_ENV    = "production"
+APP_URL     = "https://egner.rent"
+REVOLUT_ENV = "live"
+
+# -- Titkos valtozok (deployment elott beallitani)
+# wrangler secret put REVOLUT_MERCHANT_API_KEY
+# wrangler secret put REVOLUT_MERCHANT_WEBHOOK_SECRET
+# wrangler secret put REVOLUT_BUSINESS_API_KEY
+# wrangler secret put REVOLUT_PLATFORM_ACCOUNT_ID
+# wrangler secret put SENDGRID_API_KEY
+# wrangler secret put GEMINI_API_KEY
+# wrangler secret put SENTRY_DSN
+
+# -- Cloudflare Access (Zero Trust dashboard-on konfiguralt)
+# Vedett utvonalak: /app/*, /profile/*, /api/*
+# CF Access automatikusan adja: Cf-Access-Authenticated-User-Email
+# Lokalis teszt: curl -H "X-Dev-User-Email: test@example.com" http://localhost:8788/api/auth/me
+
+# -- Lokalis fejlesztes (npm run serve → localhost:8788)
+[dev]
+port = 8788
+local_protocol = "http"
