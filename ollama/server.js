@@ -1,6 +1,5 @@
 /**
  * FreeTranslator v2.1 – Ollama Backend
- * Felváltja a Google Gemini-alapú server.ts-t.
  *
  * Végpontok:
  *   GET  /api/health      – Ollama + modell állapot
@@ -13,6 +12,8 @@
  *   GET  /api/qr          – QR kód SVG (min. V1 21×21 modul)
  *   POST /api/distance    – távolság viszonypárok
  *   GET  /api/cortex      – Cortex ütemező állapot (GPU-analóg hőtérkép)
+ *   GET  /api/doctor      – GPU Dark Silicon Doctor diagnózis
+ *   GET  /api/slices      – Funkció szelet állapot (irányzott metszetek)
  */
 
 'use strict';
@@ -28,6 +29,21 @@ const { buildQRUrl, calcDistancePairs, calcOrganizationScore, QR_ENDPOINTS } = r
 const { scheduler } = require('../src/cortex-scheduler.js');
 const { calcAllColumns, applyAllColumnConstraints, calcStructuralIntegrity } = require('../src/structural-columns.js');
 const { catalog: legoCatalog } = require('../src/atom-lego.js');
+const { GpuDarkSiliconDoctor, ShadowRegistry } = require('../src/dark-silicon-doctor.js');
+const { registry: sliceRegistry } = require('../src/function-slice.js');
+
+// ── GPU Dark Silicon Doctor + Árnyék példányosítás ────────────────────────────
+const shadows = new ShadowRegistry();
+// Alap 4 típusra 2-2 árnyék egységet hozunk létre
+['north', 'east', 'south', 'west'].forEach(t => {
+  shadows.createShadow(t);
+  shadows.createShadow(t);
+});
+const doctor = new GpuDarkSiliconDoctor(scheduler, shadows);
+doctor.startAutoScan();   // 3 másodpercenként automatikus diagnózis
+
+// Árnyék tick: 5 másodpercenként hővezérlés
+setInterval(() => shadows.tick(), 5000);
 
 const app  = express();
 const PORT = process.env.PORT || 3000;
@@ -434,6 +450,40 @@ app.get('/lego/:id', (req, res) => {
   const b = legoCatalog.bricks[req.params.id];
   if (!b) return res.status(404).json({ error: 'Atom brick nem található' });
   res.json(b.toJSON());
+});
+
+// ── GET /api/doctor ───────────────────────────────────────────────────────────
+// GPU Dark Silicon Doctor – teljes diagnózis jelentés
+app.get('/api/doctor', (_req, res) => {
+  res.json(doctor.report());
+});
+
+// ── POST /api/doctor/scan ─────────────────────────────────────────────────────
+// Azonnali vizsgálat indítása (nem várja a 3s-os timert)
+app.post('/api/doctor/scan', (_req, res) => {
+  res.json(doctor.scan());
+});
+
+// ── GET /api/slices ───────────────────────────────────────────────────────────
+// Funkció szelet nyilvántartás – irányzott kis metszetek állapota
+app.get('/api/slices', (_req, res) => {
+  res.json(sliceRegistry.status());
+});
+
+// ── POST /api/slices/run ──────────────────────────────────────────────────────
+// Egy szelet közvetlen futtatása
+app.post('/api/slices/run', async (req, res) => {
+  const { name, args = [] } = req.body;
+  const slice = sliceRegistry.find(name);
+  if (!slice) return res.status(404).json({ error: `Szelet nem található: ${name}` });
+  try {
+    const result = await slice.run(...args);
+    res.json({ result, sliceId: slice.id, heat: slice.heat, dark: slice.isDark });
+  } catch (err) {
+    res.status(err.name === 'SliceDarkError' ? 503 : 500).json({
+      error: err.message, sliceId: slice.id, dark: slice.isDark
+    });
+  }
 });
 
 // ── GET /panorama ─────────────────────────────────────────────────────────────
